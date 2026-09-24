@@ -1,0 +1,29 @@
+{
+  "name": "plan20",
+  "version": "2.3.0",
+  "description": "Plan 20: app Android (Capacitor) para acompañar un plan personal de 20 semanas, con asistente de IA opcional.",
+  "scripts": {
+    "test": "bash scripts/pruebas.sh",
+    "serve": "python3 -m http.server 8765 -d www",
+    "sync": "npx cap sync android",
+    "apk:debug": "npx cap sync android && cd android && ./gradlew assembleDebug",
+    "apk:release": "npx cap sync android && cd android && ./gradlew assembleRelease"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@capacitor-community/speech-recognition": "^7.0.1",
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/cli": "^7.6.9",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/filesystem": "^7.1.8",
+    "@capacitor/local-notifications": "^7.0.7",
+    "@capacitor/share": "^7.0.4"
+  },
+  "devDependencies": {
+    "playwright": "^1.56.0"
+  },
+  "private": true
+}

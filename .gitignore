@@ -1,0 +1,22 @@
+# Dependencias
+node_modules/
+
+# Llave de firma y contraseñas: NUNCA al repositorio
+keys/
+*.jks
+*.keystore
+android/keystore.properties
+
+# Compilados
+*.apk
+*.aab
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+
+# Varios
+.DS_Store
+*.log
+test-results/
+playwright-report/
