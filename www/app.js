@@ -1169,7 +1169,7 @@ SCREENS.ajustes = () => {
     <div class="card c6"><h3>Apariencia</h3><div class="seg">${[['system', 'Según sistema'], ['light', 'Claro'], ['dark', 'Oscuro']].map(o => `<button data-a="theme" data-x="${o[0]}" class="${s.theme === o[0] ? 'on' : ''}">${o[1]}</button>`).join('')}</div></div>
     <div class="card c6"><h3>Mi inicio personal</h3><p class="muted small">Metas, punto de partida, limitaciones, respuesta al impulso, comida elegida y acciones principales. Revísalo si tu situación cambia.</p><button class="btn" data-a="prof">Editar inicio personal</button></div>
     <div class="card c6"><h3>Copia de seguridad</h3><p class="muted small">Exporta un archivo .json para guardarlo donde elijas (Drive, Archivos…). Contiene datos íntimos: guárdalo en un lugar privado.</p>
-      <div class="row"><button class="btn pri" data-a="exp">Exportar copia</button><label class="btn" style="cursor:pointer">Importar copia<input type="file" accept="application/json,.json" id="imp" hidden></label></div></div>
+      <div class="row"><button class="btn pri" data-a="exp">Exportar copia</button><label class="btn" style="cursor:pointer">Importar copia<input type="file" accept="application/json,.json" id="imp" hidden></label>${prevImport() ? `<button class="btn" data-a="undoimp">Deshacer importación (${new Date(prevImport().at || Date.now()).toLocaleString('es-CO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})</button>` : ''}</div></div>
     <div class="card c6"><h3>Calendario</h3><p class="small">Semana 1: <b>${fmt(cal().range(1)[0], true)} – ${fmt(cal().range(1)[1], true)}</b>. Las semanas 2-20 van de lunes a domingo. Final: <b>${fmt(cal().end, true)}</b>.</p>
       <div class="field"><label>Fecha de inicio</label><input type="date" id="startD" value="${s.start}"></div>
       <hr><button class="btn danger" data-a="wipe">Borrar todos los datos</button></div>
@@ -1185,6 +1185,7 @@ HANDLERS.ajustes = (m) => {
     pin: () => lockScreen('create', () => toast('PIN actualizado')),
     prof: () => onboarding(true),
     exp: () => exportData(),
+    undoimp: (x, b) => { if (b.dataset.c) undoImport(); else { b.dataset.c = 1; b.textContent = 'Toca otra vez: vuelves a tus datos de antes de importar'; } },
     wipe: (x, b) => { if (b.dataset.c) { localStorage.clear(); location.reload(); } else { b.dataset.c = 1; b.textContent = 'Toca otra vez: se borrará todo'; } }
   });
   m.addEventListener('change', (e) => {
@@ -1194,7 +1195,7 @@ HANDLERS.ajustes = (m) => {
   });
 };
 /* Importación segura: se valida TODO antes de sustituir; el estado anterior queda como respaldo. */
-function importBackup(text) {
+function importBackup(text, confirmed) {
   let d;
   try { d = JSON.parse(text); } catch (e) { return errorBox('Copia no válida', 'El archivo no es una copia de Plan 20 (no se pudo leer). Tus datos no se tocaron.'); }
   const errs = [];
@@ -1213,7 +1214,8 @@ function importBackup(text) {
     }
   }
   if (errs.length) return errorBox('No se importó la copia', errs.join(' ') + ' Tus datos actuales siguen intactos.');
-  try { localStorage.setItem('plan20.prev', localStorage.getItem(KEY) || ''); } catch (e) {}
+  if (!confirmed) return confirmImport(text, d);
+  try { localStorage.setItem(PREV_KEY, localStorage.getItem(KEY) || ''); localStorage.setItem(PREV_KEY + 'At', String(Date.now())); } catch (e) {}
   const keep = { pinHash: S.settings.pinHash, salt: S.settings.salt };
   const ok = commit(() => {
     const ai = S.ai;
@@ -1223,7 +1225,27 @@ function importBackup(text) {
     if (!Array.isArray(S.studyDue)) S.studyDue = [];
     S.ai = Object.assign({}, ai, d.ai || {}, { spent: Math.max(ai ? ai.spent : 0, (d.ai && d.ai.spent) || 0) });
   });
-  if (ok) { route(); toast(`Copia importada: ${S.logs.length} registros`); }
+  if (ok) { route(); toast(`Copia importada: ${S.logs.length} registros. Puedes deshacerlo en Ajustes.`); }
+}
+/* Antes de reemplazar: dice qué se pierde (registros actuales que no están en la copia) y pide confirmación. */
+const PREV_KEY = 'plan20.prev';
+function confirmImport(text, d) {
+  const ids = new Set(d.logs.map(l => l.id).filter(Boolean)), lost = S.logs.filter(l => !ids.has(l.id));
+  const last = d.logs.reduce((a, l) => l.date > a ? l.date : a, '');
+  const el = document.createElement('div'); el.className = 'errbox info';
+  el.innerHTML = `<b>¿Reemplazar tus datos por esta copia?</b><div>La copia tiene ${d.logs.length} registro${d.logs.length === 1 ? '' : 's'}${last ? ` (el último del ${esc(fmt(last))})` : ''}. Ahora tienes ${S.logs.length}.${lost.length ? ` <b>${lost.length === 1 ? 'Se perderá 1 registro que no está' : `Se perderán ${lost.length} registros que no están`} en la copia.</b>` : ''} Podrás deshacerlo después en Ajustes.</div><div class="row" style="margin-top:10px"><button class="btn danger" data-ok>Reemplazar</button><button class="btn" data-no>Cancelar</button></div>`;
+  el.onclick = (e) => { if (e.target.closest('[data-ok]')) { el.remove(); importBackup(text, true); } else if (e.target.closest('[data-no]')) el.remove(); };
+  document.querySelectorAll('.errbox').forEach(x => x.remove()); document.body.appendChild(el);
+}
+/* Deshacer la última importación: vuelve al estado guardado justo antes (conserva el PIN actual). */
+function prevImport() { try { const raw = localStorage.getItem(PREV_KEY); return raw ? { raw, at: +localStorage.getItem(PREV_KEY + 'At') || 0 } : null; } catch (e) { return null; } }
+function undoImport() {
+  const pv = prevImport(); if (!pv) return;
+  let d; try { d = JSON.parse(pv.raw); } catch (e) { return errorBox('No se pudo deshacer', 'La copia anterior está dañada. Tus datos actuales siguen intactos.'); }
+  const keep = { pinHash: S.settings.pinHash, salt: S.settings.salt };
+  if (!commit(() => { const ai = S.ai; S = Object.assign(structuredClone(DEFAULT), d); S.settings = Object.assign(structuredClone(DEFAULT.settings), d.settings, keep); S.ai = Object.assign({}, ai, d.ai || {}, { spent: Math.max(ai ? ai.spent : 0, (d.ai && d.ai.spent) || 0) }); })) return;
+  try { localStorage.removeItem(PREV_KEY); localStorage.removeItem(PREV_KEY + 'At'); } catch (e) {}
+  route(); toast(`Importación deshecha: ${S.logs.length} registros`);
 }
 async function exportData() {
   const json = JSON.stringify(Object.assign({}, S, { settings: Object.assign({}, S.settings, { pinHash: '', salt: '' }) }), null, 1);

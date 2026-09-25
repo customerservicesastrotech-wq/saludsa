@@ -1,6 +1,6 @@
 {
   "name": "plan20",
-  "version": "2.3.0",
+  "version": "2.4.0",
   "description": "Plan 20: app Android (Capacitor) para acompañar un plan personal de 20 semanas, con asistente de IA opcional.",
   "scripts": {
     "test": "bash scripts/pruebas.sh",
@@ -24,7 +24,8 @@
     "@capacitor/share": "^7.0.4"
   },
   "devDependencies": {
-    "playwright": "^1.56.0"
+    "playwright": "^1.56.0",
+    "typescript": "^5.9.3"
   },
   "private": true
 }

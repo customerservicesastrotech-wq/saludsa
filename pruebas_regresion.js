@@ -314,6 +314,35 @@ const state = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('plan20.v1
     ok('31 Sin presupuesto no se envía nada y se avisa', bodies.length === 0 && /presupuesto/.test(m), m.slice(0, 80));
     await ctx.close(); }
 
+  /* 32. Aviso preventivo con hora de riesgo de madrugada (informe de simulación de 2 meses, fallo 1) */
+  for (const [horas, esperado] of [[['00:20', '00:40'], /Oct 21 2026 00:10/], [['23:40', '23:50'], /Oct 20 2026 23:20/]]) {
+    const b2 = await b.newContext({ timezoneId: 'America/Bogota' }); const p = await b2.newPage();
+    await p.addInitScript(CAP_MOCK + `;window.__n=[];window.Capacitor.Plugins.LocalNotifications={checkPermissions:async()=>({display:'granted'}),requestPermissions:async()=>({display:'granted'}),cancel:async()=>{},schedule:async({notifications})=>{window.__n.push(...notifications.map(n=>({id:n.id,at:n.schedule.at&&new Date(n.schedule.at).toString()})))}};`);
+    await p.clock.install({ time: new Date('2026-10-20T08:00:00-05:00') });
+    await p.goto(URL); await p.click('#ack');
+    for (let r = 0; r < 2; r++) { for (const n of '1234') await p.click(`.pad button[data-n="${n}"]`); await p.click('.pad button[data-ok]'); }
+    await p.clock.runFor(800);
+    await p.evaluate((hs) => { hs.forEach((h, i) => { const d = addDays(today(), -2 - i * 7); S.logs.push({ id: 'x' + i, type: 'impulso', date: d, status: 'done', data: { res: 'si', hora: h }, ts: 1 }); recomputeP(d); }); save(); delete mindDay(today()).flags.riskNote; scheduleRiskNotice(); }, horas);
+    await p.clock.runFor(300);
+    const n = await p.evaluate(() => window.__n.filter(x => x.id === 301).map(x => x.at));
+    ok(`32 Aviso preventivo con riesgo a las ${horas[1]} se programa 30 min antes`, n.length === 1 && esperado.test(n[0]), JSON.stringify(n));
+    await b2.close(); }
+
+  /* 33. Importar pide confirmación, avisa de lo que se pierde y se puede deshacer */
+  { const { p, ctx } = await fresh(b, { date: '2026-10-15' });
+    await p.evaluate(() => { S.logs.push({ id: 'viejo', type: 'aero', date: '2026-10-01', status: 'done', data: { min: 10 }, ts: 1 }); save(); });
+    const copia = await p.evaluate(() => JSON.stringify(Object.assign({}, S)));
+    await p.evaluate(() => { S.logs.push({ id: 'nuevo', type: 'aero', date: '2026-10-14', status: 'done', data: { min: 20 }, ts: 2 }); save(); });
+    await p.evaluate((t) => importBackup(t), copia); await p.waitForTimeout(100);
+    const pide = await p.evaluate(() => ({ box: (document.querySelector('.errbox') || {}).textContent || '', n: S.logs.length }));
+    ok('33 Importar pide confirmación y avisa cuántos registros se pierden', /Reemplazar/.test(pide.box) && /perderá 1 registro/.test(pide.box) && pide.n === 2, JSON.stringify(pide));
+    await p.click('.errbox [data-ok]'); await p.waitForTimeout(100);
+    const tras = await p.evaluate(() => S.logs.map(l => l.id).join());
+    await p.evaluate(() => { tab = 'ajustes'; route(); }); await p.click('[data-a="undoimp"]'); await p.click('[data-a="undoimp"]'); await p.waitForTimeout(100);
+    const desh = await p.evaluate(() => ({ ids: S.logs.map(l => l.id).join(), pin: !!S.settings.pinHash, boton: !!document.querySelector('[data-a="undoimp"]') }));
+    ok('33 Deshacer importación recupera los registros perdidos y conserva el PIN', tras === 'viejo' && desh.ids === 'viejo,nuevo' && desh.pin && !desh.boton, JSON.stringify([tras, desh]));
+    await ctx.close(); }
+
   await b.close();
   const f = results.filter(r => !r.pass);
   console.log(`\n${results.length - f.length}/${results.length} superadas`);

@@ -3,7 +3,7 @@
 App Android para acompañar un plan personal de 20 semanas: movimiento, comida, estudio, sueño y una meta personal ("Meta P"). Está pensada para una **Samsung Galaxy Tab S9 FE**. Tiene un asistente con IA (Claude) que es opcional: sin IA, todo lo esencial sigue funcionando.
 
 - **Plataforma:** Capacitor 7 (HTML/JS en `www/`) con componentes nativos en Java (`android/`).
-- **Versión:** 2.3 (`versionCode 7`).
+- **Versión:** 2.4 (`versionCode 8`).
 - **Datos:** se guardan solo en la tablet (localStorage). No hay servidor propio.
 
 ## Qué hace
@@ -42,7 +42,7 @@ scripts/pruebas.sh   Ejecuta todas las pruebas
 
 ## Cómo probar
 
-### 1. Pruebas automáticas (88 pruebas)
+### 1. Pruebas automáticas (92 pruebas)
 
 Requisitos: Node 20+ y Python 3.
 
@@ -54,7 +54,7 @@ npm test
 
 `npm test` levanta un servidor local, abre la app en Chromium y simula los componentes nativos (dictado, Escudo, notificaciones):
 
-- `pruebas_regresion.js`: 44 pruebas de funciones generales.
+- `pruebas_regresion.js`: 48 pruebas de funciones generales.
 - `pruebas_microfono.js`: 9 pruebas del dictado continuo.
 - `pruebas_escudo.js`: 35 pruebas del Escudo.
 

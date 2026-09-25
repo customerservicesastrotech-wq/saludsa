@@ -341,7 +341,9 @@ const check = (day, name, cond, info) => { checks.push({ day, name, pass: !!cond
     }
     if (i === 31 && lastExport) {
       const n0 = (await S()).logs.length;
-      await p.evaluate((txt) => importBackup(txt), lastExport); await idle(300);
+      await p.evaluate((txt) => importBackup(txt), lastExport); await idle(200);
+      check(k, 'Importar pide confirmación antes de reemplazar', await p.evaluate(() => /Reemplazar/.test((document.querySelector('.errbox') || {}).textContent || '')));
+      await p.click('.errbox [data-ok]'); await idle(300);
       const s1 = await S(); const exp = JSON.parse(lastExport);
       check(k, 'Importar copia restaura los registros del día 30', s1.logs.length === exp.logs.length, { antes: n0, copia: exp.logs.length, despues: s1.logs.length });
       check(k, 'Importar conserva el PIN del dispositivo', !!s1.settings.pinHash);

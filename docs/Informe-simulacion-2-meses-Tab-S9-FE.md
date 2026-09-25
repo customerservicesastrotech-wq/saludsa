@@ -8,14 +8,14 @@
 
 **La app aguanta bien los 2 meses de uso.** No hubo errores de JavaScript, pantallas rotas, pérdida de datos, descuadres en progreso ni en la racha, ni caídas de rendimiento.
 
-Se encontró **1 fallo real** (avisos preventivos cuando la hora de riesgo cae después de medianoche) y **4 observaciones** que no rompen la app pero conviene revisar. Detalle abajo.
+La primera corrida encontró **1 fallo real** y **4 observaciones**. Luego se corrigieron el fallo y 3 de las observaciones, más 2 fallos del flujo de compilación del APK (ver "Correcciones aplicadas"). La corrida posterior a los arreglos pasa **28/28 chequeos, sin hallazgos**, y `npm test` pasa **92/92**.
 
 | Indicador | Resultado |
 |---|---|
-| Pruebas automáticas existentes (`npm test`) | 88/88 superadas |
+| Pruebas automáticas (`npm test`) | 88/88 antes; 92/92 después de los arreglos (4 pruebas nuevas) |
 | Días simulados | 61 |
 | Errores JS / `console.error` | 0 / 0 |
-| Chequeos de la simulación | 26/27 superados (el fallido es el fallo 1) |
+| Chequeos de la simulación | 26/27 antes (el fallido era el fallo 1); 28/28 después de los arreglos |
 | Registros creados | 270 (60 sueño, 90 comida, 26 aeróbico, 43 estudio, 15 pausa, 20 impulso, 8 vínculo, 8 medida) |
 | Revisiones semanales | 9 de 9 guardadas |
 | Reinicios del proceso (Android mata la app) | 10, todos con recuperación correcta |
@@ -86,7 +86,7 @@ Se usan en modo "app instalada" (`isNativePlatform() = true`):
 
 ## Fallos encontrados
 
-### 1. Sin aviso preventivo si la hora de riesgo es después de medianoche (confirmado)
+### 1. [Corregido] Sin aviso preventivo si la hora de riesgo es después de medianoche (confirmado)
 
 - **Dónde:** `www/asistente.js:356-359` (`scheduleRiskNotice`).
 - **Qué pasa:** el aviso se programa con `at.setHours(hh, mm - 30)` sobre la fecha de **hoy**. Si los episodios suelen ser, por ejemplo, a las 00:40, la hora calculada es hoy a las 00:10, que ya pasó cuando se abre la app por la mañana. Por eso `at <= new Date()` descarta el aviso y **nunca se programa**.
@@ -96,10 +96,23 @@ Se usan en modo "app instalada" (`isNativePlatform() = true`):
 
 ## Observaciones (no son fallos, pero conviene revisarlas)
 
-1. **Avisos inexactos en Android 14.** El manifiesto no declara `SCHEDULE_EXACT_ALARM` ni `USE_EXACT_ALARM`. En Android 14 ese permiso viene denegado por defecto, así que `@capacitor/local-notifications` usa `setAndAllowWhileIdle` (inexacto). Los recordatorios y el aviso de riesgo pueden llegar varios minutos tarde. Solo se puede confirmar en la tablet.
-2. **La copia de Android incluye datos sensibles.** `android:allowBackup="true"` (`AndroidManifest.xml:6`) hace que Android copie el `localStorage` a la cuenta de Google, incluida la clave de API (`plan20.apikey`) y el hash del PIN. Eso contradice "queda guardada solo en ese dispositivo" del README. Opciones: `allowBackup="false"` o reglas de exclusión.
-3. **Importar una copia no pide confirmación.** Al importar la copia del día 30 el día 31, se reemplazaron sin aviso los registros hechos ese día después de exportar. Es el comportamiento esperado de "restaurar", pero se guarda el estado anterior en `plan20.prev` (`app.js:1216`) y no hay ningún botón para recuperarlo. Sugerencia: pedir confirmación mostrando cuántos registros se perderán, u ofrecer "Deshacer importación".
-4. **El presupuesto de IA es total, no mensual.** Con el uso simulado (saludo diario con IA y 2 o 3 mensajes al día) se gastaron $1.89 en 2 meses. Los $7 por defecto alcanzan para las 20 semanas, con margen. Los usuarios muy conversadores entrarán antes en modo ahorro (al 80 %).
+1. **[Corregido] Avisos inexactos en Android 14.** El manifiesto no declara `SCHEDULE_EXACT_ALARM` ni `USE_EXACT_ALARM`. En Android 14 ese permiso viene denegado por defecto, así que `@capacitor/local-notifications` usa `setAndAllowWhileIdle` (inexacto). Los recordatorios y el aviso de riesgo pueden llegar varios minutos tarde. Solo se puede confirmar en la tablet.
+2. **[Corregido] La copia de Android incluye datos sensibles.** `android:allowBackup="true"` (`AndroidManifest.xml:6`) hace que Android copie el `localStorage` a la cuenta de Google, incluida la clave de API (`plan20.apikey`) y el hash del PIN. Eso contradice "queda guardada solo en ese dispositivo" del README. Opciones: `allowBackup="false"` o reglas de exclusión.
+3. **[Corregido] Importar una copia no pide confirmación.** Al importar la copia del día 30 el día 31, se reemplazaron sin aviso los registros hechos ese día después de exportar. Es el comportamiento esperado de "restaurar", pero se guarda el estado anterior en `plan20.prev` (`app.js:1216`) y no hay ningún botón para recuperarlo. Sugerencia: pedir confirmación mostrando cuántos registros se perderán, u ofrecer "Deshacer importación".
+4. **[Sin cambios, es una decisión de diseño] El presupuesto de IA es total, no mensual.** Con el uso simulado (saludo diario con IA y 2 o 3 mensajes al día) se gastaron $1.89 en 2 meses. Los $7 por defecto alcanzan para las 20 semanas, con margen. Los usuarios muy conversadores entrarán antes en modo ahorro (al 80 %).
+
+## Correcciones aplicadas
+
+| Problema | Arreglo | Cómo se comprueba |
+|---|---|---|
+| Fallo 1: sin aviso preventivo con riesgo de madrugada | `scheduleRiskNotice` (`www/asistente.js`): si la hora de riesgo es antes de las 06:00 y ya es de día, el aviso se programa para la noche que viene | Prueba de regresión 32 (00:40 → aviso a las 00:10 del día siguiente; 23:50 → 23:20 del mismo día) y chequeo de la simulación |
+| Observación 1: avisos inexactos | `AndroidManifest.xml`: `USE_EXACT_ALARM` (Android 13+, se concede al instalar) y `SCHEDULE_EXACT_ALARM` hasta Android 12 | Solo en la tablet: el aviso de prueba de Ajustes debe llegar a los 5 s |
+| Observación 2: copia de Google con datos sensibles | `allowBackup="false"` y `res/xml/data_extraction_rules.xml`, que excluye todo de la copia en la nube y de la transferencia entre dispositivos. Para mover datos: Ajustes → Exportar copia | Revisión del manifiesto |
+| Observación 3: importar sin confirmación | Antes de reemplazar, la app muestra cuántos registros tiene la copia y cuántos se perderán, y pide confirmación. Después aparece "Deshacer importación" en Ajustes, que vuelve al estado anterior y conserva el PIN | Prueba de regresión 33 y chequeo de la simulación |
+| CI: `npx cap sync` fallaba ("Could not find installation of TypeScript") porque `capacitor.config.ts` necesita TypeScript | `typescript` agregado a `devDependencies` | `npx cap sync android` termina bien |
+| CI: `./gradlew: Permission denied` | `android/gradlew` marcado como ejecutable en git (modo 100755) | Por eso falló el primer run de Actions, "Versión inicial" |
+
+**Nota para quien actualice:** con `allowBackup="false"`, Android ya no guarda estos datos en la copia de Google. Actualizar el APK encima de la versión anterior no borra nada, pero conviene exportar una copia desde Ajustes de vez en cuando.
 
 ## Lo que funcionó bien
 
@@ -131,4 +144,4 @@ npx playwright install chromium   # si no está instalado
 npm run sim:2meses                # ~4 minutos
 ```
 
-El resultado día a día queda en [`simulacion-2meses-resultado.json`](simulacion-2meses-resultado.json). El script es [`pruebas_simulacion_2meses.js`](../pruebas_simulacion_2meses.js). `SIM_DAYS=N` cambia la duración y la semilla es fija, así que es reproducible. Termina con código 1 mientras el fallo 1 siga abierto.
+El resultado día a día queda en [`simulacion-2meses-resultado.json`](simulacion-2meses-resultado.json). El script es [`pruebas_simulacion_2meses.js`](../pruebas_simulacion_2meses.js). `SIM_DAYS=N` cambia la duración y la semilla es fija, así que es reproducible. Termina con código 1 si aparece algún hallazgo.

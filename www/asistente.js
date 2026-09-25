@@ -356,8 +356,10 @@ function proactive() {
 function scheduleRiskNotice() {
   const k = today(), md = mindDay(k), r = riskToday(k);
   const hora = (md.risk && md.risk.hora) || r.hora; if (!hora || md.flags.riskNote) return;
-  const [hh, mm] = hora.split(':').map(Number); const at = new Date(); at.setHours(hh, mm - 30, 0, 0);
-  if (at <= new Date()) return;
+  const [hh, mm] = hora.split(':').map(Number), now = new Date(), at = new Date(now);
+  if (hh < 6 && now.getHours() >= 6) at.setDate(at.getDate() + 1); // riesgo de madrugada: es la noche que viene, no la que ya pasó
+  at.setHours(hh, mm - 30, 0, 0);
+  if (at <= now) return;
   md.flags.riskNote = hhmm(at); save();
   scheduleOne(301, (md.risk && md.risk.texto) || 'Se acerca tu momento de riesgo: ten lista tu respuesta.', at);
 }
