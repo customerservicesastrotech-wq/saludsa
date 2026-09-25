@@ -125,6 +125,17 @@ Se usan en modo "app instalada" (`isNativePlatform() = true`):
 - **Diseño:** sin desbordamiento horizontal en ninguna de las 11 pantallas, ni en horizontal (1152 px) ni en vertical (720 px).
 - **Rendimiento estable:** Inicio tarda 5 ms el día 1 y 11 ms el día 61, y Progreso 6 ms y 7 ms. La memoria sube y baja con el recolector, sin fugas.
 
+## v2.5: Brújula en la simulación
+
+La simulación incluye ahora a Brújula: su pantalla entra en el recorrido y hay 3 chequeos al final. Resultado: **31/31 chequeos, 0 errores JS**, y la pantalla Brújula se dibuja en ≤ 9 ms.
+
+En esta simulación las recaídas son **al azar** (no dependen del sueño ni del día). La prueba retrospectiva de Brújula lo detecta: con sus predicciones, el acierto queda un 5 % por debajo de una tasa fija, en 46 noches. Por eso pasa a **modo prudente**, con reglas simples calibradas, y no inventa patrones. Es el comportamiento esperado.
+
+Con un patrón real (`pruebas_brujula.js`: recae los jueves tras dormir poco, cerca de medianoche), Brújula lo descubre:
+- riesgo de 78 % ese jueves frente a 9 % un lunes normal;
+- ventana 22:45–01:00;
+- mejora un 64 % a una tasa fija.
+
 ## Pendiente en la tablet real
 
 Esto no se puede reproducir fuera del dispositivo. Ver también "Solo se puede comprobar en la tablet real" en el README:
