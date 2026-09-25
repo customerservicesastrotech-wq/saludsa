@@ -279,7 +279,7 @@ async function agentSend(text, opts = {}) {
   if (!aiReady()) { S.ai.chat.push({ role: 'assistant', content: 'Para entender lo que me cuentas necesito la IA activada (Más → Ajustes → Inteligencia artificial). Mientras tanto, puedes registrar a mano desde Más → Registrar.', t: Date.now(), local: true }); save(); route(); return; }
   agentBusy = true; micText = ''; save(); route();
   try {
-    const hist = S.ai.chat.filter(m => !m.err && !m.local && m.content).slice(aiSaver() ? -6 : -10).map(m => ({ role: m.role, content: m.content + (m.acts ? `\n[acciones hechas: ${m.acts}]` : '') + (m.imgs ? `\n[adjuntó ${m.imgs.length} imagen(es)]` : '') }));
+    const hist = S.ai.chat.filter(m => !m.err && !m.local && m.content).slice(aiSaver() ? -6 : -10).map(m => ({ role: m.role, content: (m.role === 'user' && m.t && typeof memStamp === 'function' ? memStamp(m.t) + ' ' : '') + m.content + (m.acts ? `\n[acciones hechas: ${m.acts}]` : '') + (m.imgs ? `\n[adjuntó ${m.imgs.length} imagen(es)]` : '') }));
     while (hist.length && hist[0].role !== 'user') hist.shift();
     if (opts.hidden) hist.push({ role: 'user', content: opts.hidden });
     const msgs = hist.length ? hist : [{ role: 'user', content: text }];

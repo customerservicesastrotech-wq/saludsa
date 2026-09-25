@@ -154,6 +154,29 @@ La v2.6 lo sustituye por una **Agenda**:
 
 `pruebas_agenda.js` comprueba cada una de las cinco causas. La simulación de 2 meses sigue en **31/31 chequeos y 0 errores**.
 
+## v2.7: Reloj interno y Memoria 2.0
+
+**Petición: "no quiero decirle a cada rato qué hora es" y "que recuerde cosas complejas".**
+
+**Reloj.** Antes, la hora solo aparecía como un dato más dentro del contexto de la IA. Ahora:
+- El contexto de la IA empieza con un bloque RELOJ: fecha completa, hora, zona horaria y qué día es mañana.
+- Una regla le prohíbe preguntar la hora.
+- Cada mensaje tuyo llega con su hora ("[jue 15 oct 20:15]").
+- De madrugada avisa de que "esta noche" o "mañana" pueden significar hoy.
+- «¿Qué hora es?» y «¿qué día es?» se responden al instante, sin IA.
+
+**Memoria.** Antes era una lista de frases (máx. 150) sin fechas ni estructura. Ahora tiene cuatro partes:
+- **Personas** que no se duplican por nombre ni apodo, con notas acumuladas.
+- **Fechas** anuales o de una vez, con edad y avisos a las 09:00 el día y los días antes que elijas. El 29 de febrero se celebra el 28 en años no bisiestos.
+- **Horarios con vigencia.** Cuando cambian desde una fecha, la versión anterior se cierra y queda en el historial. Aceptan excepciones y "cada 2 semanas".
+- **Hechos** con historial de versiones y fecha "hasta".
+
+A la IA le llega un resumen acotado (≤ 9 000 caracteres incluso con 400 datos) y ordenado por relevancia: lo de hoy y mañana, las fechas próximas y lo que mencionas en tu último mensaje. Puede buscar todo lo demás con `buscar_memoria`, también en el pasado ("¿qué horario tenía el 20 de octubre?"). Los horarios y los cumpleaños aparecen solos en la Agenda.
+
+Al probarlo encontré y corregí un fallo que ya existía: lo guardado de noche mostraba la fecha del día siguiente, porque se leía en UTC.
+
+`pruebas_memoria.js` tiene 89 pruebas; en total son **285 pruebas superadas**. La simulación de 2 meses sigue en **31/31 chequeos y 0 errores**.
+
 ## Pendiente en la tablet real
 
 Esto no se puede reproducir fuera del dispositivo. Ver también "Solo se puede comprobar en la tablet real" en el README:

@@ -12,7 +12,7 @@ trap 'kill $SRV 2>/dev/null' EXIT
 for i in $(seq 1 30); do curl -s -o /dev/null "http://localhost:$PORT/index.html" && break; sleep 0.3; done
 export PLAN20_URL="http://localhost:$PORT/index.html"
 FALLOS=0
-for f in pruebas_regresion.js pruebas_microfono.js pruebas_escudo.js pruebas_brujula.js pruebas_agenda.js; do
+for f in pruebas_regresion.js pruebas_microfono.js pruebas_escudo.js pruebas_brujula.js pruebas_agenda.js pruebas_memoria.js; do
   echo "=== $f"
   node "$f" || FALLOS=$((FALLOS+1))
 done
