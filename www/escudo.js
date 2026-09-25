@@ -10,11 +10,13 @@ const BROWSERS = ['com.android.chrome', 'com.sec.android.app.sbrowser', 'org.moz
 const WATCH_DEF = ['com.google.android.youtube', 'com.instagram.android', 'com.zhiliaoapp.musically', 'com.twitter.android', 'com.reddit.frontpage', 'org.telegram.messenger', 'com.google.android.googlequicksearchbox'];
 const KNOWN_LBL = { 'com.android.chrome': 'Chrome', 'com.sec.android.app.sbrowser': 'Samsung Internet', 'org.mozilla.firefox': 'Firefox', 'com.opera.browser': 'Opera', 'com.opera.mini.native': 'Opera Mini', 'com.microsoft.emmx': 'Edge', 'com.brave.browser': 'Brave', 'com.duckduckgo.mobile.android': 'DuckDuckGo', 'com.kiwibrowser.browser': 'Kiwi', 'com.vivaldi.browser': 'Vivaldi', 'com.google.android.youtube': 'YouTube', 'com.instagram.android': 'Instagram', 'com.zhiliaoapp.musically': 'TikTok', 'com.twitter.android': 'X', 'com.reddit.frontpage': 'Reddit', 'org.telegram.messenger': 'Telegram', 'com.google.android.googlequicksearchbox': 'Google' };
 const DNS_HOST = 'family.cloudflare-dns.com';
-const SH_DEF = { enabled: false, fixedOn: true, start: '22:30', end: '06:00', riskOn: true, minutes: 5, graceMin: 10, apps: BROWSERS.slice(), watch: WATCH_DEF.slice(), watchMin: 20 };
+const SH_DEF = { enabled: false, fixedOn: true, start: '22:30', end: '06:00', riskOn: true, minutes: 5, graceMin: 10, apps: BROWSERS.slice(), watch: WATCH_DEF.slice(), watchMin: 20,
+  sleep: { on: false, start: '23:00', end: '06:30', days: [0, 1, 2, 3, 4, 5, 6], allow: [], pinExit: true, wait: 60, snooze: 15, warn: true } };
 
 DEFAULT.shield = { cfg: structuredClone(SH_DEF), events: [], usage: {}, labels: {} };
 S.shield = Object.assign({ cfg: {}, events: [], usage: {}, labels: {} }, S.shield || {});
 S.shield.cfg = Object.assign(structuredClone(SH_DEF), S.shield.cfg || {});
+S.shield.cfg.sleep = Object.assign(structuredClone(SH_DEF.sleep), S.shield.cfg.sleep || {});
 
 const appLbl = (pkg) => (S.shield.labels || {})[pkg] || KNOWN_LBL[pkg] || (pkg || '').split('.').pop();
 const hm2min = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
@@ -63,6 +65,7 @@ function shieldMessages() {
 async function syncShield() {
   const SH = SHN(); if (!SH) return false;
   const cfg = Object.assign({}, S.shield.cfg, { riskWindows: riskWindows(), messages: shieldMessages(), name: '' });
+  if (typeof sleepNative === 'function') cfg.sleep = sleepNative();
   try { await SH.configure({ config: cfg }); return true; } catch (e) { errorBox('Escudo', e.message || String(e)); return false; }
 }
 let shStatus = null;
@@ -93,7 +96,7 @@ async function pullShield() {
 
 /* El asistente pregunta qué pasó después de una pausa (sin coste de IA) */
 function askAboutShield() {
-  const pend = S.shield.events.filter(e => !e.asked && (e.end || e.done) && e.kind !== 'test' && Date.now() - e.t < 3 * 864e5);
+  const pend = S.shield.events.filter(e => !e.asked && (e.end || e.done) && e.kind !== 'test' && !/^sleep/.test(e.kind || '') && Date.now() - e.t < 3 * 864e5);
   if (!pend.length) return;
   pend.forEach(e => { e.asked = true; });
   const e = pend[pend.length - 1], t = new Date(e.t);
@@ -180,7 +183,7 @@ SCREENS.escudo = () => {
       <p class="small muted">Límites honestos: se puede desactivar en Ajustes, y una VPN o un navegador con su propio “DNS seguro” pueden saltárselo (si tu navegador tiene esa opción, déjala en “proveedor actual” o apagada). Es una barrera más, no un muro: por eso va junto con la pausa.</p></div>
 
     <div class="card c12"><h3>Lo que registró</h3>
-      ${evs.length ? evs.map(e => `<div class="logitem"><div><div class="t">${esc(fmt(nightOf(e.t)))} · ${hhmm(new Date(e.t))} — ${e.kind === 'manual' ? 'Pausa pedida por ti' : e.kind === 'test' ? 'Prueba' : e.kind === 'time' ? `Rato largo en ${esc(appLbl(e.pkg))} (${fmtMs(e.inAppMs || 0)})` : `Abriste ${esc(appLbl(e.pkg))}`}</div><div class="d">${e.minutes} min${e.extended ? ' + 5' : ''} · ${e.end || e.done ? 'completada' : 'en curso'}${e.choice === 'talk' ? ' · hablaste con Plan 20' : ''}${e.outcome ? ' · ' + { ok: 'lo superaste', relapse: 'hubo recaída', other: 'era otra cosa' }[e.outcome] : ''}</div></div></div>`).join('') : '<div class="small muted">Aún nada.</div>'}
+      ${evs.length ? evs.map(e => `<div class="logitem"><div><div class="t">${esc(fmt(nightOf(e.t)))} · ${hhmm(new Date(e.t))} — ${/^sleep/.test(e.kind || '') ? sleepEvText(e) : e.kind === 'manual' ? 'Pausa pedida por ti' : e.kind === 'test' ? 'Prueba' : e.kind === 'time' ? `Rato largo en ${esc(appLbl(e.pkg))} (${fmtMs(e.inAppMs || 0)})` : `Abriste ${esc(appLbl(e.pkg))}`}</div><div class="d">${e.minutes} min${e.extended ? ' + 5' : ''} · ${e.end || e.done ? 'completada' : 'en curso'}${e.choice === 'talk' ? ' · hablaste con Plan 20' : ''}${e.outcome ? ' · ' + { ok: 'lo superaste', relapse: 'hubo recaída', other: 'era otra cosa' }[e.outcome] : ''}</div></div></div>`).join('') : '<div class="small muted">Aún nada.</div>'}
       ${nights.length ? `<div class="kicker" style="margin-top:14px">Tiempo en esas apps durante la guardia</div>${nights.map(n => `<div class="small">${esc(fmt(n))}: ${Object.entries(S.shield.usage[n]).sort((a, b) => b[1] - a[1]).map(([p, ms]) => `${esc(appLbl(p))} ${fmtMs(ms)}`).join(' · ')}</div>`).join('')}` : ''}</div>
   </div>`;
 };
@@ -218,17 +221,18 @@ async function pickApps(which) {
   if (SHN()) { try { apps = (await SHN().listApps()).apps || []; } catch (e) {} }
   if (!apps.length) apps = Object.keys(KNOWN_LBL).map(p => ({ pkg: p, label: KNOWN_LBL[p] }));
   apps.forEach(a => { S.shield.labels[a.pkg] = a.label; });
-  const cur = new Set(S.shield.cfg[which]);
-  const known = which === 'apps' ? BROWSERS : WATCH_DEF;
+  const listOf = () => which === 'sleep' ? S.shield.cfg.sleep.allow : S.shield.cfg[which];
+  const cur = new Set(listOf());
+  const known = which === 'apps' ? BROWSERS : which === 'sleep' ? ['com.sec.android.app.clockpackage', 'com.google.android.deskclock', 'com.spotify.music', 'com.samsung.android.app.notes'] : WATCH_DEF;
   apps.sort((a, b) => (known.includes(b.pkg) - known.includes(a.pkg)) || a.label.localeCompare(b.label));
   sheet({
-    title: which === 'apps' ? 'Frenar al abrir' : 'Frenar si pasas mucho rato',
-    sub: which === 'apps' ? 'Durante la guardia, abrir una de estas apps inicia la pausa. Recomendado: todos los navegadores.' : `Durante la guardia, pasar más de ${S.shield.cfg.watchMin} min seguidos en una de estas apps inicia la pausa.`,
+    title: which === 'apps' ? 'Frenar al abrir' : which === 'sleep' ? 'Apps permitidas al dormir' : 'Frenar si pasas mucho rato',
+    sub: which === 'sleep' ? 'En modo dormir solo podrás abrir estas apps (p. ej. reloj/alarma o música para dormir). Las llamadas y emergencias siempre funcionan.' : which === 'apps' ? 'Durante la guardia, abrir una de estas apps inicia la pausa. Recomendado: todos los navegadores.' : `Durante la guardia, pasar más de ${S.shield.cfg.watchMin} min seguidos en una de estas apps inicia la pausa.`,
     body: () => `<input type="text" id="apq" placeholder="Buscar app" style="width:100%;margin-bottom:12px"><div class="apick">${apps.map(a => `<label class="apr" data-l="${esc(a.label.toLowerCase())}"><input type="checkbox" value="${esc(a.pkg)}" ${cur.has(a.pkg) ? 'checked' : ''}> <span>${esc(a.label)}</span>${known.includes(a.pkg) ? '<span class="pill">sugerida</span>' : ''}</label>`).join('')}</div>`,
     saveLabel: 'Guardar',
     onSave: () => {
       const sel = [...document.querySelectorAll('.apick input:checked')].map(i => i.value);
-      if (commit(() => { S.shield.cfg[which] = sel; })) { closeSheet(true); route(); syncShield(); }
+      if (commit(() => { if (which === 'sleep') S.shield.cfg.sleep.allow = sel.slice(0, 6); else S.shield.cfg[which] = sel; })) { closeSheet(true); route(); syncShield(); }
       return false;
     }
   });
@@ -270,7 +274,7 @@ const _hoyScreen = SCREENS.hoy;
 SCREENS.hoy = () => _hoyScreen().replace(`${ic('wave', 18)} Tengo un impulso</button></div>`, `${ic('wave', 18)} Tengo un impulso</button>${SHN() ? `<button class="btn" data-a="lock5" title="Bloquea la tablet ${S.shield.cfg.minutes} minutos">${ic('shield', 18)} Pausa ${S.shield.cfg.minutes} min</button>` : ''}</div>`);
 
 /* Herramienta para la IA */
-TOOLS2.push({ name: 'escudo', description: 'Escudo de la tablet. "estado": cómo está configurado y las pausas recientes. "pausa_ahora": bloquea la pantalla N minutos (úsalo SOLO si la persona lo pide o acepta tu ofrecimiento). "abrir": muestra la pantalla Escudo.', input_schema: { type: 'object', properties: { accion: { type: 'string', enum: ['estado', 'pausa_ahora', 'abrir'] }, minutos: { type: 'number' } }, required: ['accion'] } });
+TOOLS2.push({ name: 'escudo', description: 'Escudo de la tablet. "estado": cómo está configurado y las pausas recientes. "pausa_ahora": bloquea la pantalla N minutos (úsalo SOLO si la persona lo pide o acepta tu ofrecimiento). "abrir": muestra la pantalla Escudo. "dormir": activa el modo dormir (la tablet queda bloqueada hasta su hora de despertar); úsalo cuando diga que se va a dormir o lo pida.', input_schema: { type: 'object', properties: { accion: { type: 'string', enum: ['estado', 'pausa_ahora', 'abrir', 'dormir'] }, minutos: { type: 'number' } }, required: ['accion'] } });
 QUERY_TOOLS.push('escudo');
 const _runTool = runTool;
 runTool = function (name, x, ctx) {
@@ -278,12 +282,13 @@ runTool = function (name, x, ctx) {
   x = x || {};
   if (x.accion === 'pausa_ahora') { const n = Math.max(1, Math.min(15, Math.round(+x.minutos || S.shield.cfg.minutes || 5))); setTimeout(() => shieldLock(n, 'manual'), 1500); return { result: `Pausa de ${n} min activándose.`, card: { type: 'chip', text: `Pausa de ${n} min en marcha` } }; }
   if (x.accion === 'abrir') return { result: 'Mostrado.', card: { type: 'view', vista: 'escudo' } };
+  if (x.accion === 'dormir') { if (!SHN()) return { result: 'El modo dormir solo funciona en la tablet.' }; const until = sleepNextEnd(); setTimeout(() => sleepNow(), 2500); return { result: `Modo dormir activándose hasta las ${hhmm(new Date(until))}.`, card: { type: 'chip', text: `🌙 Modo dormir hasta las ${hhmm(new Date(until))}` } }; }
   return { result: shieldSummary() };
 };
 function shieldSummary() {
   const c = S.shield.cfg, rw = riskWindows();
   const dt = (t) => { const d = new Date(t); return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${hhmm(d)}`; };
-  const ev = S.shield.events.slice(-10).map(e => `${dt(e.t)} ${e.kind === 'manual' ? 'pausa pedida' : e.kind === 'time' ? 'rato largo en ' + appLbl(e.pkg) + ' (' + fmtMs(e.inAppMs || 0) + ')' : 'abrió ' + appLbl(e.pkg)}${e.outcome ? ' → ' + { ok: 'lo superó', relapse: 'recaída', other: 'era otra cosa' }[e.outcome] : ''}`);
+  const ev = S.shield.events.slice(-10).map(e => `${dt(e.t)} ${/^sleep/.test(e.kind || '') ? sleepEvText(e) : e.kind === 'manual' ? 'pausa pedida' : e.kind === 'time' ? 'rato largo en ' + appLbl(e.pkg) + ' (' + fmtMs(e.inAppMs || 0) + ')' : 'abrió ' + appLbl(e.pkg)}${e.outcome ? ' → ' + { ok: 'lo superó', relapse: 'recaída', other: 'era otra cosa' }[e.outcome] : ''}`);
   const us = Object.keys(S.shield.usage).sort().slice(-5).map(n => `${n}: ` + Object.entries(S.shield.usage[n]).map(([p, ms]) => `${appLbl(p)} ${fmtMs(ms)}`).join(', '));
   return `Escudo ${c.enabled ? 'ENCENDIDO' : 'apagado'}; franja fija ${c.fixedOn ? c.start + '-' + c.end : 'no'}; automático por riesgo ${c.riskOn ? (rw.length ? rw.map(w => w.day + ' ' + w.label).join(', ') : 'sí, sin ventana aún') : 'no'}; pausa ${c.minutes} min.${ev.length ? '\nPausas recientes: ' + ev.join(' | ') : ''}${us.length ? '\nTiempo en apps vigiladas durante la guardia (por noche): ' + us.join(' | ') : ''}`;
 }

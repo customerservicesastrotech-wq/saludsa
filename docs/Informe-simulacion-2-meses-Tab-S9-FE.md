@@ -136,6 +136,24 @@ Con un patrón real (`pruebas_brujula.js`: recae los jueves tras dormir poco, ce
 - ventana 22:45–01:00;
 - mejora un 64 % a una tasa fija.
 
+## v2.6: Agenda, conversación, imágenes y modo dormir
+
+**Fallo reportado: "le digo lo que haré mañana y no lo guarda, o solo una vez".** Lo reproduje con el código de la v2.5. Tenía cinco causas:
+1. Si la IA escribía la fecha en palabras ("mañana"), se guardaba en **hoy**.
+2. Pasado mañana o más adelante también caía en **hoy** y pisaba lo que ya había.
+3. Había un solo texto por área, así que dos planes (caminar a las 7, fuerza a las 18) se pisaban.
+4. Lo que no era una de las 8 áreas (una cita, una tarea) se descartaba.
+5. El panel "Tu día" y el contexto de la IA solo mostraban hoy.
+
+La v2.6 lo sustituye por una **Agenda**:
+- Cada cosa es un elemento con fecha y hora exacta o momento del día.
+- Muestra varios días.
+- Envía un recordatorio 10 min antes.
+- Si la fecha no se entiende, el asistente recibe el error y la corrige; ya no la guarda en hoy.
+- La IA ve los próximos 7 días con los ids de cada elemento.
+
+`pruebas_agenda.js` comprueba cada una de las cinco causas. La simulación de 2 meses sigue en **31/31 chequeos y 0 errores**.
+
 ## Pendiente en la tablet real
 
 Esto no se puede reproducir fuera del dispositivo. Ver también "Solo se puede comprobar en la tablet real" en el README:

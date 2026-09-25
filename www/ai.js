@@ -116,8 +116,10 @@ async function claude({ kind, system, messages, max_tokens = 600, tools, tool_ch
   if (!key) throw new Error('Falta tu clave de API. Añádela en Ajustes → Inteligencia artificial.');
   if (aiSaver()) max_tokens = Math.round(max_tokens * 0.75);
   // Reserva: estimación del peor caso ANTES de enviar (entrada ≈ caracteres/3; salida = máximo permitido)
-  const chars = JSON.stringify(system).length + JSON.stringify(messages).length + (tools ? JSON.stringify(tools).length : 0);
-  const est = (chars / 3 * AI_PRICE.cw + max_tokens * AI_PRICE.out) / 1e6;
+  // Las imágenes se cuentan por su tamaño (≈ ancho×alto/750 tokens, máx. ~1600), no por su texto base64
+  let imgTok = 0;
+  const chars = JSON.stringify(system).length + JSON.stringify(messages, (k, v) => { if (v && v.type === 'image' && v.source) { imgTok += 1600; return '[imagen]'; } return v; }).length + (tools ? JSON.stringify(tools).length : 0);
+  const est = ((chars / 3 + imgTok) * AI_PRICE.cw + max_tokens * AI_PRICE.out) / 1e6;
   if (S.ai.spent + est > S.ai.budget) throw new Error(`Esta consulta podría superar tu presupuesto de IA (quedan ~${usd(aiLeft())} de ${usd(S.ai.budget)}; esta costaría hasta ~${usd(est)}). Puedes ampliarlo en Ajustes.`);
   const body = { model: AI_MODEL, max_tokens, output_config: { effort: 'medium' }, system, messages };
   if (tools) { body.tools = tools; body.tool_choice = tool_choice; }

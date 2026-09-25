@@ -299,7 +299,7 @@ const check = (day, name, cond, info) => { checks.push({ day, name, pass: !!cond
     /* Recorrido por todas las pantallas (render y tiempos) cada 3 días y rotación a vertical cada 7 */
     if (i % 3 === 0) {
       if (i % 7 === 0) await p.setViewportSize({ width: 720, height: 1152 });
-      for (const t of ['hoy', 'mas', 'detalle', 'registrar', 'plan', 'revision', 'progreso', 'guias', 'ajustes', 'memoria', 'escudo', 'brujula']) {
+      for (const t of ['hoy', 'mas', 'detalle', 'registrar', 'plan', 'revision', 'progreso', 'guias', 'ajustes', 'memoria', 'escudo', 'brujula', 'agenda']) {
         const a0 = process.hrtime.bigint(); await p.evaluate((t) => { closeSheet(true); tab = t; route(); }, t); const ms = Number(process.hrtime.bigint() - a0) / 1e6; // reloj real (el de la página está simulado)
         perf.push({ day: i, tab: t, ms });
         const re = await renderErr(); if (re) issue(k, 'pantalla', `No se pudo mostrar ${t}`, re);

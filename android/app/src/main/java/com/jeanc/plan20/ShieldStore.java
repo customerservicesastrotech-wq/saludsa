@@ -2,6 +2,7 @@ package com.jeanc.plan20;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
@@ -67,6 +68,70 @@ final class ShieldStore {
         if (inFixed(cfg, now)) return "fixed";
         if (inRisk(cfg, now) != null) return "risk";
         return null;
+    }
+
+    // ---- modo dormir: la tablet queda cubierta desde la hora de dormir hasta la de despertar ----
+    /** Apps de llamadas: nunca se cubren (emergencias y llamadas entrantes). */
+    static final String[] CALL_PKGS = { "com.samsung.android.dialer", "com.samsung.android.incallui", "com.android.dialer", "com.google.android.dialer",
+            "com.android.incallui", "com.android.server.telecom", "com.android.phone", "com.samsung.android.app.telephonyui", "com.android.emergency", "com.google.android.apps.safetyhub" };
+
+    static JSONObject sleepCfg(JSONObject cfg) { JSONObject s = cfg.optJSONObject("sleep"); return s != null ? s : new JSONObject(); }
+    static long sleepUntil(Context c) { return p(c).getLong("sleepUntil", 0); }
+    static long sleepSnooze(Context c) { return p(c).getLong("sleepSnooze", 0); }
+    static boolean sleepConfigured(Context c, JSONObject cfg, long now) { return sleepCfg(cfg).optBoolean("on", false) || sleepUntil(c) > now; }
+
+    /** Dentro de la franja de dormir (puede cruzar medianoche) y en uno de los días elegidos (el día en que empieza la noche; 0 = domingo). */
+    static boolean inSleepWindow(JSONObject cfg, long now) {
+        JSONObject s = sleepCfg(cfg);
+        if (!s.optBoolean("on", false)) return false;
+        int a = hm(s.optString("start", "23:00")), b = hm(s.optString("end", "06:30"));
+        if (a < 0 || b < 0 || a == b) return false;
+        Calendar k = Calendar.getInstance(); k.setTimeInMillis(now);
+        int t = k.get(Calendar.HOUR_OF_DAY) * 60 + k.get(Calendar.MINUTE);
+        boolean in = a < b ? (t >= a && t < b) : (t >= a || t < b);
+        if (!in) return false;
+        if (a > b && t < b) k.add(Calendar.DAY_OF_MONTH, -1); // madrugada: pertenece a la noche anterior
+        int dow = k.get(Calendar.DAY_OF_WEEK) - 1;
+        JSONArray d = s.optJSONArray("days");
+        if (d == null || d.length() == 0) return true;
+        for (int i = 0; i < d.length(); i++) if (d.optInt(i, -1) == dow) return true;
+        return false;
+    }
+
+    static boolean sleeping(Context c, JSONObject cfg, long now) {
+        if (sleepSnooze(c) > now) return false;
+        return sleepUntil(c) > now || inSleepWindow(cfg, now);
+    }
+
+    /** Cuándo termina el descanso en curso. */
+    static long sleepEndsAt(Context c, JSONObject cfg, long now) {
+        long u = sleepUntil(c);
+        if (u > now) return u;
+        int b = hm(sleepCfg(cfg).optString("end", "06:30"));
+        if (b < 0) b = 390;
+        Calendar k = Calendar.getInstance(); k.setTimeInMillis(now);
+        k.set(Calendar.HOUR_OF_DAY, b / 60); k.set(Calendar.MINUTE, b % 60); k.set(Calendar.SECOND, 0); k.set(Calendar.MILLISECOND, 0);
+        if (k.getTimeInMillis() <= now) k.add(Calendar.DAY_OF_MONTH, 1);
+        return k.getTimeInMillis();
+    }
+
+    static boolean sleepAllowed(JSONObject cfg, String pkg) {
+        if (pkg == null) return false;
+        for (String x : CALL_PKGS) if (x.equals(pkg)) return true;
+        return listHas(sleepCfg(cfg), "allow", pkg);
+    }
+
+    /** El PIN de la app (mismo hash que usa la app: SHA-256 de "sal:pin"). */
+    static boolean checkPin(JSONObject cfg, String pin) {
+        JSONObject s = sleepCfg(cfg);
+        String h = s.optString("pinHash", ""), salt = s.optString("pinSalt", "");
+        if (h.isEmpty() || pin == null || pin.isEmpty()) return false;
+        try {
+            byte[] d = MessageDigest.getInstance("SHA-256").digest((salt + ":" + pin).getBytes("UTF-8"));
+            StringBuilder sb = new StringBuilder();
+            for (byte x : d) sb.append(String.format(Locale.US, "%02x", x));
+            return sb.toString().equals(h);
+        } catch (Exception e) { return false; }
     }
 
     static boolean listHas(JSONObject cfg, String key, String pkg) {

@@ -16,6 +16,7 @@ import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
@@ -47,6 +48,7 @@ import org.json.JSONObject;
 public class ShieldService extends Service {
     static final String ACTION_LOCK = "com.jeanc.plan20.SHIELD_LOCK";
     static final String ACTION_RELOAD = "com.jeanc.plan20.SHIELD_RELOAD";
+    static final String ACTION_SLEEP = "com.jeanc.plan20.SHIELD_SLEEP";
     static final String CHANNEL = "escudo";
     static final int NOTIF_ID = 7020;
     static volatile boolean running = false;
@@ -64,6 +66,15 @@ public class ShieldService extends Service {
     private long lockStart, lockTotal;
     private int msgIdx;
     private long lastMsgSwap;
+
+    // Modo dormir
+    private View sleepView;
+    private TextView sClock, sInfo, sMsg, sPinDots, sPinNote;
+    private LinearLayout sPinBox;
+    private String pinBuf = "";
+    private long pinOkAt = 0;
+    private int sMsgIdx = 0;
+    private long sLastSwap = 0;
 
     private String fg = null;          // paquete en primer plano
     private long fgSince = 0;          // desde cuándo
@@ -89,6 +100,15 @@ public class ShieldService extends Service {
             int min = intent.getIntExtra("minutes", ShieldStore.lockMinutes(cfg));
             startLock(Math.max(1, Math.min(ShieldStore.MAX_LOCK_MIN, min)), intent.getStringExtra("kind") != null ? intent.getStringExtra("kind") : "manual", null);
         }
+        if (ACTION_SLEEP.equals(a)) {
+            long until = intent.getLongExtra("until", 0);
+            long now = System.currentTimeMillis();
+            if (until > now) {
+                ShieldStore.p(this).edit().putLong("sleepUntil", until).putLong("sleepSnooze", 0).apply();
+                try { JSONObject ev = new JSONObject(); ev.put("id", "s" + now); ev.put("t", now); ev.put("kind", "sleep"); ev.put("until", until); ev.put("done", now); ShieldStore.addEvent(this, ev); } catch (Exception ignored) {}
+                goHome();
+            }
+        }
         h.removeCallbacks(tick);
         h.post(tick);
         return START_STICKY;
@@ -99,6 +119,7 @@ public class ShieldService extends Service {
         running = false;
         h.removeCallbacksAndMessages(null);
         removeOverlay();
+        removeSleep();
         super.onDestroy();
     }
 
@@ -124,7 +145,7 @@ public class ShieldService extends Service {
     private Notification buildNotif(String reason) {
         Intent open = new Intent(this, MainActivity.class).setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
         PendingIntent pi = PendingIntent.getActivity(this, 1, open, PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
-        String text = reason == null ? "Protección lista" : ("fixed".equals(reason) ? "Protección nocturna activa" : "Protección activa · franja de riesgo");
+        String text = reason == null ? "Protección lista" : "sleep".equals(reason) ? "Modo dormir activo" : ("fixed".equals(reason) ? "Protección nocturna activa" : "Protección activa · franja de riesgo");
         Notification.Builder b = Build.VERSION.SDK_INT >= 26 ? new Notification.Builder(this, CHANNEL) : new Notification.Builder(this);
         b.setSmallIcon(R.drawable.ic_stat_p20).setContentTitle("Plan 20").setContentText(text).setContentIntent(pi).setOngoing(true).setShowWhen(false);
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE);
@@ -146,7 +167,27 @@ public class ShieldService extends Service {
             long until = ShieldStore.lockUntil(ShieldService.this);
             boolean locking = until > now;
 
-            if (!cfg.optBoolean("enabled", false) && !locking && overlay == null) { stopSelf(); return; }
+            boolean sleepNow = ShieldStore.sleeping(ShieldService.this, cfg, now);
+            if (!cfg.optBoolean("enabled", false) && !locking && overlay == null && !sleepNow && sleepView == null
+                    && !ShieldStore.sleepConfigured(ShieldService.this, cfg, now)) { stopSelf(); return; }
+
+            // Modo dormir: cubre todo (salvo llamadas y apps permitidas) hasta la hora de despertar
+            if (sleepNow) {
+                boolean on = isInteractive();
+                if (on) {
+                    if (hasUsageAccess()) readForeground(now);
+                    boolean allow = inCall() || ShieldStore.sleepAllowed(cfg, fg);
+                    if (allow) removeSleep();
+                    else if (sleepView == null) showSleep();
+                    else updateSleep(now);
+                }
+                updateNotif("sleep");
+                h.postDelayed(this, on ? 1000 : 30000);
+                return;
+            } else if (sleepView != null) {
+                removeSleep();
+                ShieldStore.p(ShieldService.this).edit().putLong("sleepUntil", 0).apply();
+            }
 
             // Un bloqueo pendiente (p. ej. tras reiniciar la tablet) se reanuda con el tiempo que faltaba.
             if (locking && overlay == null) resumeLock(until);
@@ -447,6 +488,181 @@ public class ShieldService extends Service {
         if (overlay != null) { try { wm.removeView(overlay); } catch (Exception ignored) {} }
         overlay = null;
         overlayShowing = false;
+    }
+
+    // ------------------------------------------------------------------ modo dormir
+    private boolean inCall() {
+        try {
+            int m = ((AudioManager) getSystemService(AUDIO_SERVICE)).getMode();
+            return m == AudioManager.MODE_RINGTONE || m == AudioManager.MODE_IN_CALL || m == AudioManager.MODE_IN_COMMUNICATION;
+        } catch (Exception e) { return false; }
+    }
+
+    private JSONArray sleepMessages() {
+        JSONArray a = ShieldStore.sleepCfg(ShieldStore.config(this)).optJSONArray("messages");
+        if (a != null && a.length() > 0) return a;
+        a = new JSONArray();
+        a.put("Hora de descansar. Lo que queda pendiente puede esperar a mañana.");
+        a.put("Deja la tablet lejos de la cama y apaga la luz.");
+        a.put("Respira lento: inhala 4, sostén 4, exhala 6.");
+        return a;
+    }
+
+    private void showSleep() {
+        if (sleepView != null) return;
+        final int bg = Color.rgb(8, 12, 22), accent = Color.rgb(140, 160, 230), soft = Color.rgb(150, 160, 190);
+        JSONObject cfg = ShieldStore.config(this);
+        JSONObject sc = ShieldStore.sleepCfg(cfg);
+        FrameLayout root = new FrameLayout(this);
+        root.setBackgroundColor(bg);
+        root.setClickable(true);
+        root.setFocusable(true);
+        LinearLayout col = new LinearLayout(this);
+        col.setOrientation(LinearLayout.VERTICAL);
+        col.setGravity(Gravity.CENTER_HORIZONTAL);
+        col.setPadding(dp(28), dp(20), dp(28), dp(20));
+        root.addView(col, new FrameLayout.LayoutParams(dp(560), FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+
+        TextView t = text(14, accent, true);
+        t.setLetterSpacing(0.18f);
+        t.setText("PLAN 20 · MODO DORMIR");
+        col.addView(t);
+        sClock = text(76, Color.WHITE, true);
+        col.addView(sClock);
+        sInfo = text(18, soft, false);
+        sInfo.setPadding(0, dp(4), 0, dp(18));
+        col.addView(sInfo);
+        sMsg = text(21, Color.WHITE, false);
+        sMsg.setMinHeight(dp(96));
+        col.addView(sMsg, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+
+        // Apps permitidas (p. ej. reloj o música para dormir)
+        JSONArray allow = sc.optJSONArray("allow");
+        if (allow != null) {
+            for (int i = 0; i < Math.min(3, allow.length()); i++) {
+                final String pkg = allow.optString(i);
+                col.addView(button("Abrir " + label(pkg), Color.rgb(28, 34, 52), Color.WHITE, v -> openApp(pkg)));
+            }
+        }
+        // Emergencia: SIEMPRE disponible
+        col.addView(button("Llamada de emergencia", Color.rgb(150, 40, 40), Color.WHITE, v -> emergency()));
+
+        if (sc.optBoolean("pinExit", true) && !sc.optString("pinHash", "").isEmpty()) {
+            col.addView(button("Necesito usar la tablet", Color.TRANSPARENT, soft, v -> { sPinBox.setVisibility(sPinBox.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE); pinBuf = ""; pinOkAt = 0; paintPin(); }));
+            sPinBox = new LinearLayout(this);
+            sPinBox.setOrientation(LinearLayout.VERTICAL);
+            sPinBox.setGravity(Gravity.CENTER_HORIZONTAL);
+            sPinBox.setVisibility(View.GONE);
+            sPinNote = text(16, soft, false);
+            sPinNote.setText("Escribe tu PIN de Plan 20");
+            sPinBox.addView(sPinNote);
+            sPinDots = text(28, Color.WHITE, true);
+            sPinBox.addView(sPinDots);
+            String[][] keys = { { "1", "2", "3" }, { "4", "5", "6" }, { "7", "8", "9" }, { "⌫", "0", "OK" } };
+            for (String[] row : keys) {
+                LinearLayout r = new LinearLayout(this);
+                r.setOrientation(LinearLayout.HORIZONTAL);
+                r.setGravity(Gravity.CENTER);
+                for (final String k : row) {
+                    Button b = button(k, Color.rgb(28, 34, 52), Color.WHITE, v -> pinKey(k));
+                    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(96), dp(58));
+                    lp.setMargins(dp(5), dp(4), dp(5), dp(4));
+                    r.addView(b, lp);
+                }
+                sPinBox.addView(r);
+            }
+            col.addView(sPinBox, new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        }
+
+        int type = Build.VERSION.SDK_INT >= 26 ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_PHONE;
+        WindowManager.LayoutParams lp = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT, type,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                        | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS | WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                PixelFormat.OPAQUE);
+        lp.gravity = Gravity.TOP | Gravity.START;
+        if (Build.VERSION.SDK_INT >= 28) lp.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+        try { wm.addView(root, lp); sleepView = root; } catch (Exception e) { sleepView = null; return; }
+        sLastSwap = 0;
+        updateSleep(System.currentTimeMillis());
+    }
+
+    private void updateSleep(long now) {
+        if (sleepView == null) return;
+        JSONObject cfg = ShieldStore.config(this);
+        sClock.setText(hhmm(now));
+        sInfo.setText("La tablet descansa hasta las " + hhmm(ShieldStore.sleepEndsAt(this, cfg, now)) + ".");
+        if (now - sLastSwap > 20000) {
+            JSONArray m = sleepMessages();
+            sMsg.setText(m.optString(sMsgIdx % m.length()));
+            sMsgIdx++;
+            sLastSwap = now;
+        }
+        if (pinOkAt > 0 && sPinNote != null) {
+            int wait = Math.max(0, ShieldStore.sleepCfg(cfg).optInt("wait", 60));
+            long left = pinOkAt + wait * 1000L - now;
+            if (left <= 0) {
+                int snooze = Math.max(5, Math.min(120, ShieldStore.sleepCfg(cfg).optInt("snooze", 15)));
+                ShieldStore.p(this).edit().putLong("sleepSnooze", now + snooze * 60000L).apply();
+                logSleep("sleep_exit", snooze);
+                pinOkAt = 0;
+                removeSleep();
+            } else {
+                sPinNote.setText("Si de verdad la necesitas, espera " + ((left + 999) / 1000) + " s…");
+            }
+        }
+    }
+
+    private void paintPin() {
+        if (sPinDots == null) return;
+        StringBuilder b = new StringBuilder();
+        for (int i = 0; i < pinBuf.length(); i++) b.append("● ");
+        sPinDots.setText(b.length() == 0 ? " " : b.toString().trim());
+    }
+
+    private void pinKey(String k) {
+        if (pinOkAt > 0) return;
+        if ("⌫".equals(k)) { if (!pinBuf.isEmpty()) pinBuf = pinBuf.substring(0, pinBuf.length() - 1); }
+        else if ("OK".equals(k)) {
+            if (ShieldStore.checkPin(ShieldStore.config(this), pinBuf)) { pinOkAt = System.currentTimeMillis(); updateSleep(pinOkAt); }
+            else { sPinNote.setText("PIN incorrecto"); }
+            pinBuf = "";
+        } else if (pinBuf.length() < 6) pinBuf += k;
+        paintPin();
+    }
+
+    private void emergency() {
+        long now = System.currentTimeMillis();
+        ShieldStore.p(this).edit().putLong("sleepSnooze", now + 10 * 60000L).apply();
+        logSleep("sleep_emergency", 10);
+        removeSleep();
+        try { startActivity(new Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {}
+    }
+
+    private void openApp(String pkg) {
+        try {
+            Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+            if (i == null) return;
+            // Sin acceso a datos de uso no sabría cuándo sales de esa app: se permite 10 min y vuelve el modo dormir
+            if (!hasUsageAccess()) ShieldStore.p(this).edit().putLong("sleepSnooze", System.currentTimeMillis() + 10 * 60000L).apply();
+            removeSleep(); fg = pkg; startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+        } catch (Exception ignored) {}
+    }
+
+    private void logSleep(String kind, int minutes) {
+        try {
+            long now = System.currentTimeMillis();
+            JSONObject ev = new JSONObject();
+            ev.put("id", kind + now); ev.put("t", now); ev.put("kind", kind); ev.put("minutes", minutes); ev.put("done", now);
+            ShieldStore.addEvent(this, ev);
+        } catch (Exception ignored) {}
+    }
+
+    private void removeSleep() {
+        if (sleepView != null) { try { wm.removeView(sleepView); } catch (Exception ignored) {} }
+        sleepView = null;
+        sPinBox = null; sPinDots = null; sPinNote = null;
+        pinBuf = ""; pinOkAt = 0;
     }
 
     static String hhmm(long t) { return new SimpleDateFormat("HH:mm", Locale.US).format(new Date(t)); }

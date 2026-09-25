@@ -140,7 +140,7 @@ function bjPoints() {
     else if (m != null) pts.push({ m, w: 0.5 });
     else if (l.data.via === 'protocolo' && l.ts) { const d = new Date(l.ts); pts.push({ m: d.getHours() * 60 + d.getMinutes(), w: 0.5 }); }
   });
-  ((S.shield && S.shield.events) || []).forEach(e => { if (e.t && e.kind !== 'test' && e.outcome !== 'other') { const d = new Date(e.t); pts.push({ m: d.getHours() * 60 + d.getMinutes(), w: e.outcome === 'relapse' ? 1 : 0.4 }); } });
+  ((S.shield && S.shield.events) || []).forEach(e => { if (e.t && e.kind !== 'test' && !/^sleep/.test(e.kind || '') && e.outcome !== 'other') { const d = new Date(e.t); pts.push({ m: d.getHours() * 60 + d.getMinutes(), w: e.outcome === 'relapse' ? 1 : 0.4 }); } });
   return pts;
 }
 function bjCurve() {

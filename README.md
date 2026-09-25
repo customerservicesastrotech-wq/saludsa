@@ -3,19 +3,20 @@
 App Android para acompañar un plan personal de 20 semanas: movimiento, comida, estudio, sueño y una meta personal ("Meta P"). Está pensada para una **Samsung Galaxy Tab S9 FE**. Tiene un asistente con IA (Claude) que es opcional: sin IA, todo lo esencial sigue funcionando.
 
 - **Plataforma:** Capacitor 7 (HTML/JS en `www/`) con componentes nativos en Java (`android/`).
-- **Versión:** 2.5 (`versionCode 9`).
+- **Versión:** 2.6 (`versionCode 10`).
 - **Datos:** se guardan solo en la tablet (localStorage). No hay servidor propio.
 
 ## Qué hace
 
 | Área | Qué incluye |
 |---|---|
-| Inicio (asistente) | Conversación, panel "Tu día" (propuesta · lo que piensas hacer · lo real), conteo de días y récord de la Meta P, aviso de riesgo según tu historial |
+| Inicio (asistente) | Conversación amplia que empieza con un saludo, con botones de respuesta rápida, voz e imágenes adjuntas (la IA las lee); **Agenda** por horas o momentos del día, de varios días, con recordatorios (sustituye a "Tu día"); conteo de días y récord de la Meta P, aviso de riesgo según tu historial |
 | Registro | Formularios completos por tipo (aeróbico, fuerza, comida, estudio, sueño, pausa, vínculo, impulso, medida), borradores, historial editable |
 | Plan | 20 semanas en fases, plan semanal editable, revisión semanal, progreso con gráficas |
 | Protocolo | "Tengo un impulso": pausa guiada en 5 pasos con temporizadores que siguen aunque se cierre la app |
 | Voz | Dictado continuo (no se corta en los silencios ni envía solo) |
 | Brújula (nuevo en 2.5) | Motor local que anticipa y adapta: probabilidad de riesgo de esta noche y reloj de 24 h aprendidos de tu historial, qué respuestas te funcionan, ajuste semanal con las 8 reglas del manual, avisos antes de tu ventana, tendencias, acierto medido con tu propio historial (si no mejora a una tasa fija, pasa a modo prudente). Órdenes sin IA (“¿cómo voy?”, “riesgo esta noche”, “pausa 5 minutos”…) y voz: lee las respuestas y conversación manos libres |
+| Modo dormir (nuevo en 2.6) | A la hora de dormir la tablet queda bloqueada hasta la mañana: pantalla oscura sobre cualquier app, salvo llamadas, emergencia (siempre) y las apps que permitas. Salida opcional con PIN y espera. «Me voy a dormir» la bloquea al momento. Se configura en Escudo |
 | Escudo | En las horas de riesgo, si se abre una app elegida, la pantalla queda en pausa N minutos con mensajes personales. Solo usa qué app está abierta y cuánto rato. Guía para activar el filtro DNS familiar |
 | Privacidad | PIN, etiquetas discretas, sin capturas de pantalla (`FLAG_SECURE`), copia de seguridad `.json` |
 
@@ -31,6 +32,8 @@ www/                 App (lo que ve el usuario)
   asistente.js       Asistente (Inicio), memoria, riesgo, micrófono
   escudo.js          Pantalla Escudo y su integración con el asistente
   brujula.js         Motor Brújula: riesgo aprendido, qué funciona, ajuste semanal, avisos, órdenes y voz
+  agenda.js          Agenda por horas (la crea el asistente y tú), recordatorios, respuestas rápidas
+  dormir.js          Modo dormir: configuración, «me voy a dormir», aviso previo
 android/app/src/main/java/com/jeanc/plan20/
   MainActivity.java            Registra los plugins; FLAG_SECURE
   ContinuousSpeechPlugin.java  Dictado continuo
@@ -45,7 +48,7 @@ scripts/pruebas.sh   Ejecuta todas las pruebas
 
 ## Cómo probar
 
-### 1. Pruebas automáticas (144 pruebas)
+### 1. Pruebas automáticas (195 pruebas)
 
 Requisitos: Node 20+ y Python 3.
 
@@ -60,6 +63,7 @@ npm test
 - `pruebas_regresion.js`: 49 pruebas de funciones generales.
 - `pruebas_microfono.js`: 9 pruebas del dictado continuo.
 - `pruebas_escudo.js`: 35 pruebas del Escudo.
+- `pruebas_agenda.js`: 51 pruebas de la Agenda: los cinco motivos por los que no se guardaba lo que contabas, recordatorios, saludo inicial, respuestas rápidas, imágenes y modo dormir.
 - `pruebas_brujula.js`: 51 pruebas de Brújula. Plantan patrones en un historial simulado (recae los jueves tras dormir poco, cerca de medianoche) y comprueban que el motor los descubre solo. También comprueban que con recaídas al azar no se inventa patrones.
 
 Termina con código 1 si algo falla. Además, `npm run sim:2meses` simula 2 meses de uso en una Galaxy Tab S9 FE (ver [informe](docs/Informe-simulacion-2-meses-Tab-S9-FE.md)). Las pruebas fijan la zona horaria `America/Bogota` (UTC-5), así que dan lo mismo en cualquier máquina.

@@ -254,9 +254,9 @@ const state = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('plan20.v1
     });
     await p.evaluate(() => { localStorage.setItem('plan20.apikey', 'sk-ant-test'); commit(() => { for (let i = 0; i < 20; i++) { const k = addDays('2026-09-25', i); day(k).p = { res: 'no', v2: 1, manual: { res: 'no' } }; } addLog('estudio', '2026-10-02', 'done', { tema: 'Termodinámica' }); }); route(); });
     await p.fill('#cin', 'caminé 25 minutos y voy a almorzar arroz con pollo'); await p.click('[data-a="csend"]'); await p.waitForTimeout(400);
-    const r = await p.evaluate(() => { const l = S.logs.find(x => x.type === 'aero'); const md = mindDay(today()); return { data: l && l.data, int: md.int.almuerzo, prop: md.prop.cena, mem: S.mind.mem.map(m => m.text), panel: document.querySelector('.today').innerText }; });
+    const r = await p.evaluate(() => { const l = S.logs.find(x => x.type === 'aero'); const its = ag.items(today()); const a = its.find(x => x.title === 'Arroz con pollo en casa'), c = its.find(x => x.title === 'Huevos con arepa'); return { data: l && l.data, int: a && !a.prop && a.moment === 'almuerzo' ? a.title : null, prop: c && c.prop && c.moment === 'cena' ? c.title : null, mem: S.mind.mem.map(m => m.text), panel: document.querySelector('.today').innerText }; });
     ok('22 El asistente registra solo lo dicho (sin sensación ni dolor deducidos)', r.data && r.data.min === 25 && r.data.sens === undefined && r.data.dolor === undefined, JSON.stringify(r.data));
-    ok('23 Intención y propuesta aparecen en “Tu día”', r.int === 'Arroz con pollo en casa' && r.prop === 'Huevos con arepa' && /Arroz con pollo en casa/.test(r.panel) && /Huevos con arepa/.test(r.panel));
+    ok('23 Intención y propuesta quedan en la Agenda de hoy (almuerzo y cena)', r.int === 'Arroz con pollo en casa' && r.prop === 'Huevos con arepa' && /Arroz con pollo en casa/.test(r.panel) && /Huevos con arepa/.test(r.panel));
     ok('24 Memoria permanente guardada', r.mem.includes('Almuerza en casa con su familia'));
     await p.click('.chip-inf[data-a="sugok"]'); await p.waitForTimeout(150);
     const sug = await p.evaluate(() => S.logs.find(x => x.type === 'aero').data);
@@ -303,7 +303,7 @@ const state = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('plan20.v1
     const tiles = await p.evaluate(() => [...document.querySelectorAll('.tile[data-a="go"]')].map(t => t.dataset.x));
     for (const t of tiles.filter(x => x !== 'hist')) { await p.click('.rail button[data-tab="mas"]'); await p.click(`.tile[data-x="${t}"]`); await p.waitForTimeout(80); }
     const alerts = await p.evaluate(() => document.querySelectorAll('#main .card.alert').length);
-    ok('30 “Más” abre todas las pantallas anteriores sin errores', tiles.length === 11 && tiles[0] === "brujula" && tiles[1] === "escudo" && !errs.length && !alerts, JSON.stringify(tiles));
+    ok('30 “Más” abre todas las pantallas anteriores sin errores', tiles.length === 12 && tiles[0] === "agenda" && tiles[1] === "brujula" && tiles[2] === "escudo" && !errs.length && !alerts, JSON.stringify(tiles));
     await ctx.close(); }
 
   { const { p, ctx } = await fresh(b, { date: '2026-10-15', hour: 9 });

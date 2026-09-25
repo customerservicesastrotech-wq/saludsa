@@ -337,3 +337,42 @@ code.dns{font-family:ui-monospace,monospace;background:var(--surface-2);padding:
 .bjcard .row{align-items:center;gap:12px;flex-wrap:nowrap}
 .bjcard .mini{margin-top:8px}
 @media (orientation:portrait),(max-width:980px){.bjtog{flex-wrap:wrap}.radar{font-size:.85rem}}
+
+/* ---------- Agenda (v2.6) ---------- */
+.agstrip{display:flex;gap:6px;overflow-x:auto;padding:8px 0 10px;scrollbar-width:none}
+.agstrip button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:6px 10px;font-size:.85rem;color:var(--ink-2);position:relative;cursor:pointer}
+.agstrip button.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+.agstrip button i{font-style:normal;font-size:.7rem;background:var(--acc-soft);color:var(--ink);border-radius:8px;padding:0 5px;margin-left:5px}
+.agstrip button.on i{background:rgba(255,255,255,.25);color:inherit}
+.agi{display:grid;grid-template-columns:98px minmax(0,1fr) auto;gap:10px;align-items:center;padding:10px 12px;border-radius:14px;background:var(--surface);border:1px solid var(--line);margin-bottom:8px}
+.agi .agt{display:flex;flex-direction:column;line-height:1.2}
+.agi .agt small{color:var(--ink-3);font-size:.75rem}
+.agi .agb{cursor:pointer;min-width:0}
+.agi .agtitle{display:flex;gap:6px;align-items:center;font-weight:600}
+.agi .agtitle svg{flex:none;color:var(--acc)}
+.agi .aga{display:flex;gap:6px;align-items:center}
+.agi.prop{border-style:dashed;background:transparent}
+.agi.virt{border-style:dashed;background:transparent;opacity:.92}
+.agi.hecho .agtitle{text-decoration:line-through;color:var(--ink-3)}
+.agic{border:0;background:none;color:var(--ink-3);padding:6px;border-radius:10px;cursor:pointer}
+.agic.on{color:var(--acc)}
+.agck{width:34px;height:34px;border-radius:50%;border:2px solid var(--line);background:none;color:var(--acc-ink);font-weight:700;cursor:pointer}
+.agck.on{background:var(--acc);border-color:var(--acc)}
+.agnow{display:flex;align-items:center;gap:8px;margin:4px 0 10px;color:var(--s3);font-size:.78rem;font-weight:600}
+.agnow::after{content:"";flex:1;height:2px;background:var(--s3);border-radius:2px}
+.agreal{margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--surface-2)}
+.agwk{padding:8px 0;border-bottom:1px solid var(--line)}
+.agwl{display:flex;gap:10px;padding:2px 0}
+.agwl span{min-width:72px;color:var(--ink-3)}
+.agwl.done{text-decoration:line-through;color:var(--ink-3)}
+/* Imágenes en la conversación */
+.attb{flex:none;width:52px;height:52px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--ink-2);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.attprev{display:flex;gap:8px;padding:6px 6px 0}
+.attprev span{position:relative}
+.attprev img{width:64px;height:64px;object-fit:cover;border-radius:10px;display:block}
+.attprev button{position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:50%;border:0;background:var(--ink);color:var(--bg);font-size:.7rem;cursor:pointer}
+.mimgs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}
+.mimgs img{width:120px;height:120px;object-fit:cover;border-radius:12px}
+/* Modo dormir */
+.slgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 24px}
+@media (orientation:portrait),(max-width:980px){.slgrid{grid-template-columns:1fr}.agi{grid-template-columns:90px minmax(0,1fr) auto}}

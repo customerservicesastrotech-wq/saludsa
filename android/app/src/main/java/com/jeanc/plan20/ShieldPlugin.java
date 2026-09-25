@@ -56,6 +56,9 @@ public class ShieldPlugin extends Plugin {
         r.put("reason", reason);
         r.put("locked", ShieldStore.lockUntil(c) > now || ShieldService.overlayShowing);
         r.put("sdk", Build.VERSION.SDK_INT);
+        JSONObject cfgNow = ShieldStore.config(c);
+        r.put("sleeping", ShieldStore.sleeping(c, cfgNow, now));
+        r.put("sleepEnds", ShieldStore.sleepEndsAt(c, cfgNow, now));
         // DNS privado: el sistema informa el servidor en uso cuando está en modo "nombre de host".
         String dns = null;
         try {
@@ -75,7 +78,7 @@ public class ShieldPlugin extends Plugin {
         JSObject cfg = call.getObject("config", new JSObject());
         ShieldStore.saveConfig(c, cfg);
         try {
-            if (cfg.optBoolean("enabled", false)) startService(null, 0, null);
+            if (cfg.optBoolean("enabled", false) || ShieldStore.sleepConfigured(c, cfg, System.currentTimeMillis())) startService(null, 0, null);
             else if (ShieldService.running && ShieldStore.lockUntil(c) <= System.currentTimeMillis()) c.stopService(new Intent(c, ShieldService.class));
             call.resolve(status());
         } catch (Exception e) {
@@ -104,6 +107,23 @@ public class ShieldPlugin extends Plugin {
             startService(ShieldService.ACTION_LOCK, call.getInt("minutes", 5), call.getString("kind", "manual"));
             call.resolve();
         } catch (Exception e) { call.reject("No pude activar la pausa: " + e.getMessage()); }
+    }
+
+    /** Modo dormir ahora: cubre la tablet hasta la hora indicada (máximo 14 h). */
+    @PluginMethod
+    public void sleepNow(PluginCall call) {
+        if (!Settings.canDrawOverlays(getContext())) { call.reject("Falta el permiso para mostrarse sobre otras apps.", "OVERLAY"); return; }
+        long now = System.currentTimeMillis();
+        Double u = call.getDouble("until", 0.0);
+        long until = u == null ? 0 : u.longValue();
+        if (until <= now) until = ShieldStore.sleepEndsAt(getContext(), ShieldStore.config(getContext()), now);
+        until = Math.min(until, now + 14L * 3600000L);
+        try {
+            Intent i = new Intent(getContext(), ShieldService.class);
+            i.setAction(ShieldService.ACTION_SLEEP); i.putExtra("until", until);
+            if (Build.VERSION.SDK_INT >= 26) getContext().startForegroundService(i); else getContext().startService(i);
+            JSObject r = new JSObject(); r.put("until", until); call.resolve(r);
+        } catch (Exception e) { call.reject("No pude activar el modo dormir: " + e.getMessage()); }
     }
 
     @PluginMethod

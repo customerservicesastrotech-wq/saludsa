@@ -246,7 +246,9 @@ function agentRules() {
   return `
 MODO ASISTENTE PERSONAL (pantalla principal de la app):
 - La persona NO quiere rellenar formularios. Tú registras por ella con herramientas lo que cuenta, en el mismo turno en que respondes (texto + herramientas juntos; no pidas permiso para registrar lo que dijo con claridad: la app muestra "Deshacer").
-- Si cuenta algo que HIZO → registrar (solo lo dicho; lo deducido en "sugeridos"). Si dice lo que PIENSA hacer o comer → plan_del_dia con "intencion". Si pide recomendación o su plan del día no tiene propuesta → plan_del_dia con "propuesta".
+- Si cuenta algo que HIZO → registrar (solo lo dicho; lo deducido en "sugeridos").
+- Si dice lo que PIENSA hacer, comer o estudiar, o cualquier compromiso (hoy, mañana, otro día; con hora o sin ella) → herramienta agenda (crear), UN elemento por cosa, con fecha YYYY-MM-DD tomada del CALENDARIO y "hora" HH:MM o "momento". Nunca lo dejes solo en el texto: si no lo guardas con agenda, se pierde. Si cambia de idea → agenda cambiar/borrar con el id del bloque AGENDA. Si pide recomendación → agenda con propuesta=true. Cuando cuente que ya lo hizo → agenda hecho + registrar.
+- Tras usar agenda, confirma en tu respuesta qué quedó guardado (día y hora). Si la herramienta devuelve "NO guardado", corrige la fecha u hora y vuelve a llamarla.
 - Comida (sección 16-17): propuestas concretas por comida con estructura proteína + energético + fruta/verdura, de bajo costo, sin calorías ni gramos. Sus comidas son MIXTAS: unas familiares (propón qué servirse y qué ajustar dentro del plato familiar) y otras las prepara o compra él (propón algo sencillo y barato). Usa la memoria para saber cuáles son cuáles, qué hay en casa, gustos y alergias; si no lo sabes, pregúntalo una vez y guárdalo con recordar.
 - Compara propuesta vs intención vs real sin juzgar: si su opción es razonable según el manual, acéptala y actualiza tu propuesta; si no, explica en una frase la alternativa.
 - Guarda con recordar TODO dato estable que revele (horarios, clases, quién cocina qué, comida disponible, gustos, alergias, desencadenantes, apoyos). Usa olvidar si algo deja de ser cierto.
@@ -254,7 +256,9 @@ MODO ASISTENTE PERSONAL (pantalla principal de la app):
 - Si registra una recaída: primero una frase sin autocrítica, luego UNA pregunta breve (qué pasó justo antes) y UN cambio para la próxima vez (sección 23).
 - Para datos antiguos usa buscar_historial; para detalle del manual, consultar_guia; para abrir pantallas, mostrar. No expliques cómo usar la app: actúa.
 - Revisión semanal: si la persona acepta hacerla, resume la semana en 3-4 líneas con cantidades reales, propone UNA decisión (mantener / una variable / reducir...) y solo cuando la confirme usa guardar_revision.
-- Sé breve: máximo ~70 palabras por respuesta salvo que pida detalle. Termina, si hace falta, con UNA pregunta.`;
+- Conversa de forma cálida y amplia, como un asistente personal cercano: saluda con naturalidad, explica el porqué de lo que propones, da ideas concretas y opciones (usa listas cortas cuando ayuden). Normalmente 80-200 palabras; más si pide detalle, menos si solo confirma algo.
+- Casi siempre termina ofreciendo 2-4 respuestas rápidas con la herramienta respuestas (frases que la persona diría, p. ej. "Sí, agéndalo", "Dame otra opción"). Evita terminar con una pregunta abierta si puedes ofrecer opciones.
+- Si la persona envía imágenes: describe en una frase lo que ves y actúa (foto de su comida → pregunta o registra si dice que la comió; foto de un horario o lista → agenda; foto de un ejercicio → técnica y seguridad). No identifiques a personas.`;
 }
 function agentSystem() {
   const ph = C.PHASES.map(p => `Fase ${p.n} (sem ${p.weeks[0]}-${p.weeks[1]}): ${p.focus}`).join('\n');
@@ -268,18 +272,21 @@ function agentSystem() {
 let agentBusy = false;
 async function agentSend(text, opts = {}) {
   if (agentBusy || !text) return;
-  if (!opts.silentUser) S.ai.chat.push({ role: 'user', content: text, t: Date.now() });
+  const imgs = (opts.images || []).slice(0, 3);
+  if (!opts.silentUser) S.ai.chat.push(Object.assign({ role: 'user', content: text, t: Date.now() }, imgs.length ? { imgs: imgs.map(i => i.thumb) } : {}));
+  S.ai.chat.forEach((m, i, a) => { if (m.imgs && i < a.length - 30) delete m.imgs; }); // miniaturas solo en los últimos mensajes (espacio)
   if (ALARM.test(text)) { S.ai.chat.push({ role: 'assistant', content: alarmCard(), t: Date.now(), local: true }); openCare(); }
   if (!aiReady()) { S.ai.chat.push({ role: 'assistant', content: 'Para entender lo que me cuentas necesito la IA activada (Más → Ajustes → Inteligencia artificial). Mientras tanto, puedes registrar a mano desde Más → Registrar.', t: Date.now(), local: true }); save(); route(); return; }
   agentBusy = true; micText = ''; save(); route();
   try {
-    const hist = S.ai.chat.filter(m => !m.err && !m.local && m.content).slice(aiSaver() ? -6 : -10).map(m => ({ role: m.role, content: m.content + (m.acts ? `\n[acciones hechas: ${m.acts}]` : '') }));
+    const hist = S.ai.chat.filter(m => !m.err && !m.local && m.content).slice(aiSaver() ? -6 : -10).map(m => ({ role: m.role, content: m.content + (m.acts ? `\n[acciones hechas: ${m.acts}]` : '') + (m.imgs ? `\n[adjuntó ${m.imgs.length} imagen(es)]` : '') }));
     while (hist.length && hist[0].role !== 'user') hist.shift();
     if (opts.hidden) hist.push({ role: 'user', content: opts.hidden });
     const msgs = hist.length ? hist : [{ role: 'user', content: text }];
+    if (imgs.length) { const last = msgs[msgs.length - 1]; if (last && last.role === 'user') last.content = imgs.map(im => ({ type: 'image', source: { type: 'base64', media_type: im.media || 'image/jpeg', data: im.data } })).concat([{ type: 'text', text: String(last.content).replace(/\n\[adjuntó \d+ imagen\(es\)\]$/, '') }]); }
     let texts = [], cards = [], acts = [], cost = 0;
     for (let round = 0; round < 3; round++) {
-      const r = await claude({ kind: 'asistente', max_tokens: 1200, system: agentSystem(), messages: msgs, tools: TOOLS2, tool_choice: { type: 'auto' } });
+      const r = await claude({ kind: 'asistente', max_tokens: 1600, system: agentSystem(), messages: msgs, tools: TOOLS2, tool_choice: { type: 'auto' } });
       cost += r.cost;
       const content = r.data.content || [];
       content.filter(b => b.type === 'text' && b.text.trim()).forEach(b => texts.push(b.text.trim()));
@@ -301,22 +308,23 @@ chatSend = function (text) { tab = 'hoy'; agentSend(text); };
    BRIEFING DEL DÍA (proactivo, una vez al día)
    ====================================================================== */
 const BRIEF_TOOL = { name: 'briefing_del_dia', description: 'Saludo y propuesta del día.', input_schema: { type: 'object', properties: {
-  mensaje: { type: 'string', description: '2-3 frases: qué importa hoy según su historial, semana y riesgo' },
+  mensaje: { type: 'string', description: 'Empieza con un saludo cálido ("¡Hola, …!" o "¡Buenos días!"), SIN preguntas al principio. Luego 3-5 frases: qué importa hoy según su historial, su agenda, su semana y su riesgo' },
   propuestas: { type: 'object', properties: Object.fromEntries(AREA_ENUM.map(a => [a, { type: 'string' }])), description: 'Propuesta concreta y breve por área (merienda opcional)' },
   riesgo: { type: 'object', properties: { nivel: { type: 'string', enum: ['bajo', 'medio', 'alto'] }, hora: { type: 'string', description: 'HH:MM si su historial indica una hora de riesgo' }, texto: { type: 'string', description: 'Aviso preventivo breve y discreto (se usa en notificación)' } } },
-  pregunta: { type: 'string', description: 'UNA pregunta para que diga qué piensa hacer hoy o para aprender algo que falta en la memoria' }
-}, required: ['mensaje', 'propuestas', 'pregunta'] } };
+  agenda: { type: 'array', description: 'Propuestas para HOY con hora (HH:MM) o momento, según su plan, clases y memoria', items: { type: 'object', properties: { hora: { type: 'string' }, momento: { type: 'string', enum: ['manana', 'desayuno', 'almuerzo', 'merienda', 'tarde', 'cena', 'noche'] }, titulo: { type: 'string' }, tipo: { type: 'string', enum: ['comida', 'movimiento', 'estudio', 'tarea', 'cita', 'descanso', 'metap', 'sueno', 'otro'] } }, required: ['titulo'] } },
+  respuestas: { type: 'array', items: { type: 'string' }, description: '2-4 respuestas rápidas (frases cortas en primera persona) para contestar con un toque' }
+}, required: ['mensaje', 'propuestas'] } };
 async function morningBriefing(force) {
   const k = today(), md = mindDay(k);
   if (md.flags.brief && !(force && md.flags.brief === 'local')) return;
   const lp = localProposal(k);
   if (!aiReady() || aiLeft() < 0.05 || (S.ai.autoBrief === false && !force)) {
-    commit(() => { md.flags.brief = 'local'; S.ai.chat.push({ role: 'assistant', local: true, t: Date.now(), content: localBriefText(k), cards: aiReady() && aiLeft() >= 0.05 ? [{ type: 'quick2', text: 'Mejorar la propuesta con IA' }] : [{ type: 'chip', text: 'Propuesta básica del plan (sin IA)' }] }); });
+    commit(() => { md.flags.brief = 'local'; S.ai.chat.push({ role: 'assistant', local: true, t: Date.now(), content: localBriefText(k), cards: (aiReady() && aiLeft() >= 0.05 ? [{ type: 'quick2', text: 'Mejorar la propuesta con IA' }] : [{ type: 'chip', text: 'Propuesta básica del plan (sin IA)' }]).concat([{ type: 'quick', items: ['¿Qué me toca hoy?', '¿Cómo voy?', 'Riesgo esta noche'] }]) }); });
     route(); return;
   }
   md.flags.brief = 'pending'; agentBusy = true; route();
   try {
-    const r = await claude({ kind: 'briefing', max_tokens: 1100, system: agentSystem(), tools: [BRIEF_TOOL], tool_choice: { type: 'tool', name: 'briefing_del_dia' },
+    const r = await claude({ kind: 'briefing', max_tokens: 1400, system: agentSystem(), tools: [BRIEF_TOOL], tool_choice: { type: 'tool', name: 'briefing_del_dia' },
       messages: [{ role: 'user', content: `Es ${DOW[fromKey(k).getDay()]} ${k}, ${hhmm()}. Prepara el briefing de hoy: propuesta concreta por área usando SU plan de movimiento de hoy, sus comidas (mixtas), estudio y prevención de Meta P según su historial. Si el plan de hoy es descanso de entrenamiento, respétalo.` }] });
     const x = (r.tool && r.tool.input) || {};
     if (typeof x.mensaje !== 'string' || !x.propuestas || typeof x.propuestas !== 'object') throw new Error('respuesta incompleta');
@@ -324,7 +332,13 @@ async function morningBriefing(force) {
       AREA_ENUM.forEach(a => { const v = x.propuestas[a]; if (typeof v === 'string' && v.trim()) md.prop[a] = v.trim().slice(0, 240); });
       md.aiProp = true; md.flags.brief = 'ai';
       if (x.riesgo && typeof x.riesgo === 'object') md.risk = { nivel: x.riesgo.nivel, hora: /^\d{1,2}:\d{2}$/.test(x.riesgo.hora || '') ? x.riesgo.hora : null, texto: typeof x.riesgo.texto === 'string' ? x.riesgo.texto.slice(0, 120) : '' };
-      S.ai.chat.push({ role: 'assistant', content: x.mensaje.trim() + (typeof x.pregunta === 'string' && x.pregunta.trim() ? '\n\n' + x.pregunta.trim() : ''), t: Date.now(), cost: r.cost, brief: true });
+      if (typeof agSetProposals === 'function') {
+        const own = Array.isArray(x.agenda) ? x.agenda.filter(a => a && typeof a.titulo === 'string') : [];
+        const fromProps = [['desayuno', 'comida'], ['almuerzo', 'comida'], ['cena', 'comida']].map(([a, t]) => typeof x.propuestas[a] === 'string' && x.propuestas[a].trim() ? { momento: a, titulo: x.propuestas[a].trim().slice(0, 120), tipo: t } : null).filter(Boolean);
+        agSetProposals(k, own.length ? own.slice(0, 10) : fromProps);
+      }
+      const rq = (Array.isArray(x.respuestas) ? x.respuestas : []).filter(t => typeof t === 'string' && t.trim()).map(t => t.trim().slice(0, 48)).slice(0, 4);
+      S.ai.chat.push({ role: 'assistant', content: x.mensaje.trim(), t: Date.now(), cost: r.cost, brief: true, cards: [{ type: 'quick', items: rq.length ? rq : ['¿Qué me toca hoy?', 'Planeemos mañana', '¿Cómo voy?'] }] });
     });
     scheduleRiskNotice();
   } catch (e) {
@@ -334,7 +348,8 @@ async function morningBriefing(force) {
 }
 function localBriefText(k) {
   const st = streakInfo(), r = riskToday(k), w = cal().weekOf(k), lp = localProposal(k);
-  return `${cap1(fmt(k, true))} · ${w > 20 ? 'mantenimiento' : 'semana ' + w}. Hoy toca: **${lp.movimiento}**.${true ? ` ${L().meta}: ${st.cur} día${st.cur === 1 ? '' : 's'} seguido${st.cur === 1 ? '' : 's'}${st.best > st.cur ? ` (récord ${st.best})` : ''}.` : ''}${r.level ? ` Ojo: ${r.reasons[0]}.` : ''}\n\nTe dejé una propuesta en “Tu día”. Acéptala con un toque o dime qué piensas hacer.`;
+  const ag = typeof agItems === 'function' ? agItems(k).filter(x => !x.prop && x.status === 'pendiente') : [];
+  return `¡Hola! ${cap1(fmt(k, true))} · ${w > 20 ? 'mantenimiento' : 'semana ' + w}.${ag.length ? ` En tu agenda de hoy hay ${ag.length} cosa${ag.length === 1 ? '' : 's'}, la primera: **${agWhen(ag[0])} · ${ag[0].title}**.` : ''} Hoy toca: **${lp.movimiento}**.${true ? ` ${L().meta}: ${st.cur} día${st.cur === 1 ? '' : 's'} seguido${st.cur === 1 ? '' : 's'}${st.best > st.cur ? ` (récord ${st.best})` : ''}.` : ''}${r.level ? ` Ojo: ${r.reasons[0]}.` : ''}\n\nTe dejé propuestas en tu Agenda: acéptalas con un toque o dime qué piensas hacer.`;
 }
 
 /* ======================================================================
@@ -342,6 +357,7 @@ function localBriefText(k) {
    ====================================================================== */
 function proactive() {
   const k = today(), md = mindDay(k), h = nowH(), w = Math.max(1, cal().weekOf(k));
+  if (!md.flags.brief || md.flags.brief === 'pending') return; // el día empieza con el saludo, nunca con una pregunta
   const push = (flag, content, cards) => { if (md.flags[flag]) return; md.flags[flag] = 1; S.ai.chat.push({ role: 'assistant', local: true, t: Date.now(), content, cards }); };
   let changed = false;
   const r = riskToday(k);
@@ -349,7 +365,7 @@ function proactive() {
   if (h >= 19 && !md.flags.checkin && !((S.days[k] || {}).close)) { push('checkin', '¿Cómo fue tu día? Cuéntamelo en una frase (qué comiste, si te moviste, cómo va la Meta P) y lo registro por ti.', [{ type: 'quick', items: ['Todo según el plan', 'No me moví hoy', 'Hoy hubo recaída'] }]); changed = true; }
   const last = cal().range(w)[1];
   if ((fromKey(k).getDay() === 0 || k === last) && !S.reviews[w] && !md.flags.review) { push('review', `Hoy toca la revisión de la semana ${w} (10 min). ¿La hacemos juntos? Te resumo la semana y decidimos una cosa.`, [{ type: 'quick', items: ['Hagamos la revisión'] }, { type: 'view', vista: 'revision' }]); changed = true; }
-  if (!(S.mind.mem || []).length && !md.flags.meet && aiReady()) { push('meet', 'Para ajustarme a ti necesito conocerte un poco. Empecemos por la comida: ¿qué comidas haces con tu familia y cuáles preparas o compras tú? Puedes responder con el micrófono.'); changed = true; }
+  if (!(S.mind.mem || []).length && !md.flags.meet && aiReady() && S.ai.chat.some(m => m.role === 'user' && m.t >= fromKey(k).getTime())) { /* tras el saludo, cuando ya conversó hoy */ push('meet', 'Me gustaría conocerte un poco más para ajustar mis propuestas a tu vida real. Empecemos por la comida: cuéntame qué comidas haces con tu familia y cuáles preparas o compras tú. Puedes contestarme con la voz.', [{ type: 'quick', items: ['Te cuento de mis comidas', 'Te cuento mis horarios', 'Ahora no'] }]); changed = true; }
   if (changed) save();
 }
 /* Notificación preventiva diaria 30 min antes de su hora de riesgo (texto discreto) */
@@ -490,7 +506,8 @@ function cardHTML(c, mi, ci) {
     }
     case 'mem': return `<div class="acard"><div class="kicker">${ic('brain', 14)} Lo recordaré</div>${c.items.map(m => `<div class="small">• ${esc(m.text)} ${S.mind.mem.some(x => x.id === m.id) ? `<button class="linkb" data-a="forget" data-x="${m.id}">olvidar</button>` : '<span class="muted">(olvidado)</span>'}</div>`).join('')}</div>`;
     case 'quick2': return `<div class="qrow"><button class="qchip" data-a="brief">${esc(c.text)}</button></div>`;
-    case 'quick': return `<div class="qrow">${c.items.map(t => `<button class="qchip" data-a="send" data-x="${esc(t)}">${esc(t)}</button>`).join('')}</div>`;
+    case 'quick': if (mi !== S.ai.chat.length - 1) return ''; // solo los botones del último mensaje
+      return `<div class="qrow">${c.items.map(t => `<button class="qchip" data-a="send" data-x="${esc(t)}">${esc(t)}</button>`).join('')}</div>`;
     case 'view': return viewCard(c);
   }
   return '';
@@ -521,14 +538,15 @@ SCREENS.hoy = () => {
       <div class="row"><button class="btn pri" data-a="proto">${ic('wave', 18)} Tengo un impulso</button></div></div>
     <div class="vtabs"><button data-a="hv" data-x="chat" class="${homeView === 'chat' ? 'on' : ''}">Conversación</button><button data-a="hv" data-x="dia" class="${homeView === 'dia' ? 'on' : ''}">Tu día</button></div>
     <div class="msgs" id="msgs">
-      ${msgs.map((m, i) => `<div class="msg ${m.role} ${m.local ? 'loc' : ''} ${m.err ? 'err' : ''}">${m.role === 'assistant' ? mdLite(m.content) : esc(m.content)}${m.err && m.retry && i === msgs.length - 1 && !agentBusy ? '<div><button class="mini" data-a="retry">Reintentar</button></div>' : ''}</div>${(m.cards || []).map((cd, ci) => cardHTML(cd, i + off, ci)).join('')}`).join('')}
+      ${msgs.map((m, i) => `<div class="msg ${m.role} ${m.local ? 'loc' : ''} ${m.err ? 'err' : ''}">${m.imgs && m.imgs.length ? `<div class="mimgs">${m.imgs.filter(u => /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(u)).map(u => `<img src="${u}" alt="Imagen adjunta">`).join('')}</div>` : ''}${m.role === 'assistant' ? mdLite(m.content) : esc(m.content)}${m.err && m.retry && i === msgs.length - 1 && !agentBusy ? '<div><button class="mini" data-a="retry">Reintentar</button></div>' : ''}</div>${(m.cards || []).map((cd, ci) => cardHTML(cd, i + off, ci)).join('')}`).join('')}
       ${agentBusy ? '<div class="msg assistant typing"><i></i><i></i><i></i></div>' : ''}
       ${!msgs.length && !agentBusy ? `<div class="empty" style="text-align:center;padding:30px">${ic('ai', 30)}<p>Cuéntame qué hiciste o qué piensas hacer. Yo lo registro y te propongo el día.</p></div>` : ''}
     </div>
-    <div class="qrow">${chipsFor().map(t => `<button class="qchip" data-a="send" data-x="${esc(t)}">${esc(t)}</button>`).join('')}</div>
+    ${(() => { const lm = S.ai.chat[S.ai.chat.length - 1]; return lm && lm.role === 'assistant' && (lm.cards || []).some(c => c.type === 'quick') ? '' : `<div class="qrow">${chipsFor().map(t => `<button class="qchip" data-a="send" data-x="${esc(t)}">${esc(t)}</button>`).join('')}</div>`; })()}
     <div class="composer2">
       ${micAvailable() ? `<button id="micb" class="micb ${micOn ? 'on' : ''}" data-a="mic" aria-label="${micOn ? 'Terminar de dictar' : 'Hablar'}">${ic(micOn ? 'stop' : 'mic', 26)}</button>` : ''}
-      <div class="cwrap"><textarea id="cin" rows="1" placeholder="Habla o escribe: “caminé 20 min y almorcé en casa”" ${agentBusy ? 'disabled' : ''}>${esc(micText || composerDraft)}</textarea><div id="micl" class="micl">${micOn ? MIC_ON_LBL : ''}</div></div>
+      <button class="attb" data-a="attach" aria-label="Adjuntar imagen" ${agentBusy ? 'disabled' : ''}>${ic('image', 24)}</button><input type="file" id="attf" accept="image/*" multiple hidden>
+      <div class="cwrap">${attImgs.length ? `<div class="attprev">${attImgs.map((im, i) => `<span><img src="${im.thumb}" alt=""><button data-a="attdel" data-x="${i}" aria-label="Quitar">✕</button></span>`).join('')}</div>` : ''}<textarea id="cin" rows="1" placeholder="Habla o escribe: “caminé 20 min y almorcé en casa”" ${agentBusy ? 'disabled' : ''}>${esc(micText || composerDraft)}</textarea><div id="micl" class="micl">${micOn ? MIC_ON_LBL : ''}</div></div>
       <button class="sendb" data-a="csend" aria-label="Enviar" ${agentBusy ? 'disabled' : ''}>${ic('send', 22)}</button>
     </div>
   </section>
@@ -539,12 +557,15 @@ let composerDraft = (() => { try { return localStorage.getItem('plan20.compose')
 const keepCompose = (t) => { try { t ? localStorage.setItem('plan20.compose', t) : localStorage.removeItem('plan20.compose'); } catch (e) {} };
 HANDLERS.hoy = (m) => {
   const box = $('#msgs'); if (box) box.scrollTop = box.scrollHeight;
+  const af = $('#attf'); if (af) af.addEventListener('change', () => { attachFiles(af.files); af.value = ''; });
   const ta = $('#cin');
   if (ta) { ta.addEventListener('input', () => { composerDraft = ta.value; keepCompose(ta.value); ta.style.height = 'auto'; ta.style.height = Math.min(140, ta.scrollHeight) + 'px'; }); ta.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && window.innerWidth > 900) { e.preventDefault(); sendComposer(); } }); }
   onAct(m, {
     proto: () => protocol(),
     send: (t) => agentSend(t),
     csend: () => sendComposer(),
+    attach: () => { const f = $('#attf'); if (f) f.click(); },
+    attdel: (i) => { attImgs.splice(+i, 1); route(); },
     retry: () => { const last = S.ai.chat[S.ai.chat.length - 1]; if (last && last.err) { S.ai.chat.pop(); const u = S.ai.chat.pop(); save(); agentSend(u ? u.content : last.retry); } },
     mic: () => micOn ? micStop() : micStart(),
     hv: (x) => { homeView = x; route(); },
@@ -562,7 +583,33 @@ HANDLERS.hoy = (m) => {
   });
   if (unlocked && !mindDay(today()).flags.brief && !agentBusy) setTimeout(morningBriefing, 400);
 };
-async function sendComposer() { if (micOn) { await micEnd(); await new Promise(r => setTimeout(r, 900)); } micTailUntil = 0; const t = ($('#cin') || {}).value; if (t && t.trim()) { composerDraft = ''; keepCompose(''); micText = ''; micCommitted = ''; micCurrent = ''; agentSend(t.trim()); } }
+async function sendComposer() {
+  if (micOn) { await micEnd(); await new Promise(r => setTimeout(r, 900)); }
+  micTailUntil = 0; const t = (($('#cin') || {}).value || '').trim();
+  if (!t && !attImgs.length) return;
+  const images = attImgs.splice(0);
+  composerDraft = ''; keepCompose(''); micText = ''; micCommitted = ''; micCurrent = '';
+  agentSend(t || (images.length > 1 ? 'Mira estas imágenes' : 'Mira esta imagen'), images.length ? { images } : {});
+}
+/* Imágenes adjuntas: se reducen en la tablet (máx. 1568 px, JPEG) antes de enviarlas a la IA; en la conversación
+   solo se guarda una miniatura pequeña. */
+let attImgs = [];
+function imgShrink(img, max, q) { const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight)); const c = document.createElement('canvas'); c.width = Math.max(1, Math.round(img.naturalWidth * s)); c.height = Math.max(1, Math.round(img.naturalHeight * s)); c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); return { url: c.toDataURL('image/jpeg', q), w: c.width, h: c.height }; }
+async function imgPrep(file) {
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('No pude abrir esa imagen.')); i.src = url; });
+    const big = imgShrink(img, 1568, 0.85), th = imgShrink(img, 220, 0.6);
+    return { data: big.url.split(',')[1], media: 'image/jpeg', w: big.w, h: big.h, thumb: th.url };
+  } finally { URL.revokeObjectURL(url); }
+}
+async function attachFiles(files) {
+  const list = [...(files || [])].filter(f => /^image\//.test(f.type)).slice(0, 3 - attImgs.length);
+  if (!list.length) return toast(attImgs.length >= 3 ? 'Máximo 3 imágenes por mensaje' : 'Elige una imagen');
+  for (const f of list) { try { attImgs.push(await imgPrep(f)); } catch (e) { errorBox('Imagen', e.message); } }
+  if (!aiReady()) toast('Para que lea imágenes necesito la IA activada (Ajustes → IA)');
+  route();
+}
 
 /* ======================================================================
    MÁS: todas las pantallas anteriores, sin ruido en el inicio
