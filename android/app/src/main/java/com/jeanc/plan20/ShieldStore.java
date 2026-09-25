@@ -1,5 +1,7 @@
 package com.jeanc.plan20;
 
+import android.app.AlarmManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.SharedPreferences;
 import java.security.MessageDigest;
@@ -71,7 +73,7 @@ final class ShieldStore {
     }
 
     // ---- modo dormir: la tablet queda cubierta desde la hora de dormir hasta la de despertar ----
-    /** Apps de llamadas: nunca se cubren (emergencias y llamadas entrantes). */
+    /** Apps de llamadas: no se cubren mientras las usas para una llamada (entrante o de emergencia); cualquier otra app vuelve a quedar cubierta. */
     static final String[] CALL_PKGS = { "com.samsung.android.dialer", "com.samsung.android.incallui", "com.android.dialer", "com.google.android.dialer",
             "com.android.incallui", "com.android.server.telecom", "com.android.phone", "com.samsung.android.app.telephonyui", "com.android.emergency", "com.google.android.apps.safetyhub" };
 
@@ -80,39 +82,88 @@ final class ShieldStore {
     static long sleepSnooze(Context c) { return p(c).getLong("sleepSnooze", 0); }
     static boolean sleepConfigured(Context c, JSONObject cfg, long now) { return sleepCfg(cfg).optBoolean("on", false) || sleepUntil(c) > now; }
 
-    /** Dentro de la franja de dormir (puede cruzar medianoche) y en uno de los días elegidos (el día en que empieza la noche; 0 = domingo). */
-    static boolean inSleepWindow(JSONObject cfg, long now) {
-        JSONObject s = sleepCfg(cfg);
-        if (!s.optBoolean("on", false)) return false;
-        int a = hm(s.optString("start", "23:00")), b = hm(s.optString("end", "06:30"));
-        if (a < 0 || b < 0 || a == b) return false;
+    /** Próxima alarma del reloj de la tablet (Samsung Reloj u otra app de alarmas), o 0. Ignora las de esta app. */
+    static long systemNextAlarm(Context c) {
+        try {
+            AlarmManager am = (AlarmManager) c.getSystemService(Context.ALARM_SERVICE);
+            AlarmManager.AlarmClockInfo i = am == null ? null : am.getNextAlarmClock();
+            if (i == null) return 0;
+            PendingIntent pi = i.getShowIntent();
+            if (pi != null && c.getPackageName().equals(pi.getCreatorPackage())) return 0;
+            return i.getTriggerTime();
+        } catch (Exception e) { return 0; }
+    }
+
+    static boolean endsWithAlarm(JSONObject cfg) { return "alarm".equals(sleepCfg(cfg).optString("endMode", "fixed")); }
+
+    /** Comienzo de la noche más reciente (la última hora de dormir que ya pasó). */
+    static long nightStart(JSONObject cfg, long now) {
+        int a = hm(sleepCfg(cfg).optString("start", "22:30"));
+        if (a < 0) a = 22 * 60 + 30;
         Calendar k = Calendar.getInstance(); k.setTimeInMillis(now);
-        int t = k.get(Calendar.HOUR_OF_DAY) * 60 + k.get(Calendar.MINUTE);
-        boolean in = a < b ? (t >= a && t < b) : (t >= a || t < b);
-        if (!in) return false;
-        if (a > b && t < b) k.add(Calendar.DAY_OF_MONTH, -1); // madrugada: pertenece a la noche anterior
+        k.set(Calendar.HOUR_OF_DAY, a / 60); k.set(Calendar.MINUTE, a % 60); k.set(Calendar.SECOND, 0); k.set(Calendar.MILLISECOND, 0);
+        if (k.getTimeInMillis() > now) k.add(Calendar.DAY_OF_MONTH, -1);
+        return k.getTimeInMillis();
+    }
+
+    /** Hora fija de despertar de la noche que empieza en ns (respaldo cuando no hay alarma). */
+    static long fixedEnd(JSONObject cfg, long ns) {
+        int b = hm(sleepCfg(cfg).optString("end", "06:30"));
+        if (b < 0) b = 390;
+        Calendar k = Calendar.getInstance(); k.setTimeInMillis(ns);
+        k.set(Calendar.HOUR_OF_DAY, b / 60); k.set(Calendar.MINUTE, b % 60);
+        if (k.getTimeInMillis() <= ns) k.add(Calendar.DAY_OF_MONTH, 1);
+        return k.getTimeInMillis();
+    }
+
+    static final long MAX_NIGHT = 16L * 3600000L;
+
+    /** Fin de la noche que empieza en ns: la alarma de la tablet de esa noche (si "endMode" = alarm) o la hora fija.
+     *  La alarma se recuerda en cuanto se ve, porque al sonar el sistema ya informa la del día siguiente. */
+    static long nightEnd(Context c, JSONObject cfg, long ns, long now) {
+        long fe = fixedEnd(cfg, ns);
+        if (!endsWithAlarm(cfg)) return fe;
+        SharedPreferences p = p(c);
+        // La alarma de esta noche ya sonó: la noche terminó (aunque luego se posponga, no se vuelve a bloquear)
+        if (p.getLong("alarmNight", 0) == ns && now >= p.getLong("alarmAt", Long.MAX_VALUE)) return p.getLong("alarmAt", fe);
+        long a = systemNextAlarm(c);
+        if (a > ns && a - ns <= MAX_NIGHT && a > now) {
+            if (p.getLong("alarmNight", 0) != ns || p.getLong("alarmAt", 0) != a) p.edit().putLong("alarmNight", ns).putLong("alarmAt", a).apply();
+            return a;
+        }
+        if (p.getLong("alarmNight", 0) == ns) return p.getLong("alarmAt", fe);
+        return fe;
+    }
+
+    static boolean nightOnDay(JSONObject cfg, long ns) {
+        Calendar k = Calendar.getInstance(); k.setTimeInMillis(ns);
         int dow = k.get(Calendar.DAY_OF_WEEK) - 1;
-        JSONArray d = s.optJSONArray("days");
+        JSONArray d = sleepCfg(cfg).optJSONArray("days");
         if (d == null || d.length() == 0) return true;
         for (int i = 0; i < d.length(); i++) if (d.optInt(i, -1) == dow) return true;
         return false;
     }
 
-    static boolean sleeping(Context c, JSONObject cfg, long now) {
-        if (sleepSnooze(c) > now) return false;
-        return sleepUntil(c) > now || inSleepWindow(cfg, now);
+    /** Dentro de la noche de dormir (desde la hora de dormir hasta la alarma o la hora fija), en uno de los días elegidos. */
+    static boolean inSleepWindow(Context c, JSONObject cfg, long now) {
+        if (!sleepCfg(cfg).optBoolean("on", false)) return false;
+        long ns = nightStart(cfg, now);
+        return nightOnDay(cfg, ns) && now < nightEnd(c, cfg, ns, now);
     }
 
-    /** Cuándo termina el descanso en curso. */
+    static boolean sleeping(Context c, JSONObject cfg, long now) {
+        if (sleepSnooze(c) > now) return false;
+        return sleepUntil(c) > now || inSleepWindow(c, cfg, now);
+    }
+
+    /** Cuándo termina el descanso en curso (o el de la próxima noche). */
     static long sleepEndsAt(Context c, JSONObject cfg, long now) {
         long u = sleepUntil(c);
         if (u > now) return u;
-        int b = hm(sleepCfg(cfg).optString("end", "06:30"));
-        if (b < 0) b = 390;
-        Calendar k = Calendar.getInstance(); k.setTimeInMillis(now);
-        k.set(Calendar.HOUR_OF_DAY, b / 60); k.set(Calendar.MINUTE, b % 60); k.set(Calendar.SECOND, 0); k.set(Calendar.MILLISECOND, 0);
-        if (k.getTimeInMillis() <= now) k.add(Calendar.DAY_OF_MONTH, 1);
-        return k.getTimeInMillis();
+        long ns = nightStart(cfg, now), e = nightEnd(c, cfg, ns, now);
+        if (e > now) return e;
+        Calendar k = Calendar.getInstance(); k.setTimeInMillis(ns); k.add(Calendar.DAY_OF_MONTH, 1);
+        return nightEnd(c, cfg, k.getTimeInMillis(), now);
     }
 
     static boolean sleepAllowed(JSONObject cfg, String pkg) {

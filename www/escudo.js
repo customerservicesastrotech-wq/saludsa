@@ -11,12 +11,14 @@ const WATCH_DEF = ['com.google.android.youtube', 'com.instagram.android', 'com.z
 const KNOWN_LBL = { 'com.android.chrome': 'Chrome', 'com.sec.android.app.sbrowser': 'Samsung Internet', 'org.mozilla.firefox': 'Firefox', 'com.opera.browser': 'Opera', 'com.opera.mini.native': 'Opera Mini', 'com.microsoft.emmx': 'Edge', 'com.brave.browser': 'Brave', 'com.duckduckgo.mobile.android': 'DuckDuckGo', 'com.kiwibrowser.browser': 'Kiwi', 'com.vivaldi.browser': 'Vivaldi', 'com.google.android.youtube': 'YouTube', 'com.instagram.android': 'Instagram', 'com.zhiliaoapp.musically': 'TikTok', 'com.twitter.android': 'X', 'com.reddit.frontpage': 'Reddit', 'org.telegram.messenger': 'Telegram', 'com.google.android.googlequicksearchbox': 'Google' };
 const DNS_HOST = 'family.cloudflare-dns.com';
 const SH_DEF = { enabled: false, fixedOn: true, start: '22:30', end: '06:00', riskOn: true, minutes: 5, graceMin: 10, apps: BROWSERS.slice(), watch: WATCH_DEF.slice(), watchMin: 20,
-  sleep: { on: false, start: '23:00', end: '06:30', days: [0, 1, 2, 3, 4, 5, 6], allow: [], pinExit: true, wait: 60, snooze: 15, warn: true } };
+  sleep: { on: true, start: '22:30', end: '06:30', endMode: 'alarm', days: [0, 1, 2, 3, 4, 5, 6], allow: [], pinExit: false, wait: 60, snooze: 15, warn: true } };
 
 DEFAULT.shield = { cfg: structuredClone(SH_DEF), events: [], usage: {}, labels: {} };
 S.shield = Object.assign({ cfg: {}, events: [], usage: {}, labels: {} }, S.shield || {});
 S.shield.cfg = Object.assign(structuredClone(SH_DEF), S.shield.cfg || {});
 S.shield.cfg.sleep = Object.assign(structuredClone(SH_DEF.sleep), S.shield.cfg.sleep || {});
+/* v2.7: el modo dormir queda automático todas las noches a las 22:30 hasta que suene la alarma de la tablet, sin salida con PIN (se puede cambiar en Escudo → Modo dormir) */
+if (!S.shield.cfg.sleep.v27) Object.assign(S.shield.cfg.sleep, { on: true, start: '22:30', endMode: 'alarm', pinExit: false, v27: true });
 
 const appLbl = (pkg) => (S.shield.labels || {})[pkg] || KNOWN_LBL[pkg] || (pkg || '').split('.').pop();
 const hm2min = (s) => { const m = /^(\d{1,2}):(\d{2})$/.exec(s || ''); return m ? (+m[1]) * 60 + (+m[2]) : null; };
@@ -227,7 +229,7 @@ async function pickApps(which) {
   apps.sort((a, b) => (known.includes(b.pkg) - known.includes(a.pkg)) || a.label.localeCompare(b.label));
   sheet({
     title: which === 'apps' ? 'Frenar al abrir' : which === 'sleep' ? 'Apps permitidas al dormir' : 'Frenar si pasas mucho rato',
-    sub: which === 'sleep' ? 'En modo dormir solo podrás abrir estas apps (p. ej. reloj/alarma o música para dormir). Las llamadas y emergencias siempre funcionan.' : which === 'apps' ? 'Durante la guardia, abrir una de estas apps inicia la pausa. Recomendado: todos los navegadores.' : `Durante la guardia, pasar más de ${S.shield.cfg.watchMin} min seguidos en una de estas apps inicia la pausa.`,
+    sub: which === 'sleep' ? 'En modo dormir solo podrás abrir estas apps (p. ej. reloj/alarma o música para dormir). Las llamadas entrantes y el marcador de emergencia siguen funcionando; todo lo demás queda bloqueado.' : which === 'apps' ? 'Durante la guardia, abrir una de estas apps inicia la pausa. Recomendado: todos los navegadores.' : `Durante la guardia, pasar más de ${S.shield.cfg.watchMin} min seguidos en una de estas apps inicia la pausa.`,
     body: () => `<input type="text" id="apq" placeholder="Buscar app" style="width:100%;margin-bottom:12px"><div class="apick">${apps.map(a => `<label class="apr" data-l="${esc(a.label.toLowerCase())}"><input type="checkbox" value="${esc(a.pkg)}" ${cur.has(a.pkg) ? 'checked' : ''}> <span>${esc(a.label)}</span>${known.includes(a.pkg) ? '<span class="pill">sugerida</span>' : ''}</label>`).join('')}</div>`,
     saveLabel: 'Guardar',
     onSave: () => {

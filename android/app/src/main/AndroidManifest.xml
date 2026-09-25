@@ -65,6 +65,13 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!-- Alarmas en el reloj de la tablet (Samsung Reloj) -->
+        <intent>
+            <action android:name="android.intent.action.SET_ALARM" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.SHOW_ALARMS" />
+        </intent>
     </queries>
 
     <!-- Permissions -->
@@ -80,4 +87,8 @@
     <!-- Avisos a su hora exacta (apertura, cierre, aviso preventivo). En Android 13+ USE_EXACT_ALARM se concede al instalar. -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <!-- Agenda en Samsung Calendar (calendario del sistema) y alarmas en el reloj de la tablet -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <uses-permission android:name="com.android.alarm.permission.SET_ALARM" />
 </manifest>

@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(ContinuousSpeechPlugin.class);
         registerPlugin(ShieldPlugin.class);
         registerPlugin(VozPlugin.class);
+        registerPlugin(DispositivoPlugin.class);
         super.onCreate(savedInstanceState);
         // Privacidad: oculta el contenido en "recientes" y bloquea capturas de pantalla.
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE);

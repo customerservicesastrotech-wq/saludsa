@@ -8,7 +8,7 @@ window.Capacitor = { isNativePlatform: () => false, Plugins: {
   LocalNotifications: { checkPermissions: async () => ({ display: 'granted' }), requestPermissions: async () => ({ display: 'granted' }),
     cancel: async ({ notifications }) => { notifications.forEach(n => delete window.__n[n.id]); },
     schedule: async ({ notifications }) => { notifications.forEach(n => { window.__n[n.id] = { body: n.body, at: n.schedule.at ? new Date(n.schedule.at).getTime() : null, on: n.schedule.on || null }; }); } },
-  Shield: { getStatus: async () => ({ usage: true, overlay: true, battery: true, running: true, enabled: false, sleeping: false }), configure: async ({ config }) => { window.__cfg = config; return {}; },
+  Shield: { getStatus: async () => ({ usage: true, overlay: true, battery: true, running: true, enabled: false, sleeping: false, nextAlarm: window.__nextAlarm || 0 }), configure: async ({ config }) => { window.__cfg = config; return {}; },
     lockNow: async (o) => { window.__locks.push(o.minutes); }, sleepNow: async (o) => { window.__sleep.push(o.until); return { until: o.until }; },
     popEvents: async () => ({ events: [], usage: {} }), listApps: async () => ({ apps: [{ pkg: 'com.sec.android.app.clockpackage', label: 'Reloj' }, { pkg: 'com.android.chrome', label: 'Chrome' }] }), addListener: () => {} }
 } };`;
@@ -153,22 +153,31 @@ const TU = (name, input) => ({ type: 'tool_use', id: 't' + Math.random().toStrin
   /* 6. Modo dormir */
   { const { p, ctx, errs } = await open(b, '2026-10-15T23:10:00-05:00');
     await p.evaluate(() => { tab = 'escudo'; route(); }); await p.clock.runFor(300);
-    ok('6 Escudo muestra la tarjeta “Modo dormir” con emergencia siempre disponible', await p.evaluate(() => /Modo dormir/.test(document.querySelector('#sleepcard').textContent) && /emergencia siempre funcionan/.test(document.querySelector('#sleepcard').textContent)));
+    ok('6 v2.8: el modo dormir viene activado a las 22:30 hasta la alarma; la emergencia solo abre el marcador', await p.evaluate(() => /Modo dormir/.test(document.querySelector('#sleepcard').textContent) && /únicamente el marcador de emergencia/.test(document.querySelector('#sleepcard').textContent) && S.shield.cfg.sleep.on && S.shield.cfg.sleep.start === '22:30' && S.shield.cfg.sleep.endMode === 'alarm' && !S.shield.cfg.sleep.pinExit));
     await p.click('[data-a="slon"][data-x="1"]'); await p.clock.runFor(500);
     const cfg = await p.evaluate(() => ({ c: window.__cfg && window.__cfg.sleep, pin: S.settings.pinHash, salt: S.settings.salt }));
-    ok('6 Activar envía la configuración a la tablet (horario, días, PIN como hash)', cfg.c && cfg.c.on === true && cfg.c.start === '23:00' && cfg.c.end === '06:30' && cfg.c.pinHash === cfg.pin && cfg.c.pinSalt === cfg.salt && cfg.c.days.length === 7, cfg.c && { on: cfg.c.on, s: cfg.c.start, e: cfg.c.end });
+    ok('6 La configuración llega a la tablet (22:30, termina con la alarma, sin salida con PIN)', cfg.c && cfg.c.on === true && cfg.c.start === '22:30' && cfg.c.endMode === 'alarm' && cfg.c.end === '06:30' && cfg.c.pinHash === '' && cfg.c.days.length === 7, cfg.c && { on: cfg.c.on, s: cfg.c.start, e: cfg.c.end, m: cfg.c.endMode });
+    await p.evaluate(() => { S.shield.cfg.sleep.pinExit = true; save(); syncShield(); }); await p.clock.runFor(300);
+    ok('6 Si activas la salida con PIN, viaja como hash', await p.evaluate(() => window.__cfg.sleep.pinHash === S.settings.pinHash && window.__cfg.sleep.pinSalt === S.settings.salt));
     ok('6 La pantalla de dormir lleva mensajes útiles (tu mañana, descanso)', cfg.c && cfg.c.messages.length >= 3);
     const w = await p.evaluate(() => Object.entries(window.__n).filter(([id]) => +id >= 311 && +id <= 317).map(([id, x]) => id + ':' + x.on.weekday + '@' + x.on.hour + ':' + x.on.minute));
-    ok('6 Aviso 10 min antes de dormir, un recordatorio por día (22:50)', w.length === 7 && w.every(x => x.endsWith('@22:50')) && w.includes('315:5@22:50'), w);
+    ok('6 Aviso 10 min antes de dormir, un recordatorio por día (22:20)', w.length === 7 && w.every(x => x.endsWith('@22:20')) && w.includes('315:5@22:20'), w);
     await p.click('[data-a="slday"][data-x="5"]'); await p.clock.runFor(400);
     ok('6 Quitar el viernes: ya no toca esa noche', await p.evaluate(() => !sleep.onDay('2026-10-16') && sleep.onDay('2026-10-15') && !window.__n[316]));
     await p.click('[data-a="slnow"]'); await p.clock.runFor(400);
-    ok('6 “Dormir ahora” bloquea hasta las 06:30 de mañana', await p.evaluate(() => window.__sleep.length === 1 && new Date(window.__sleep[0]).toString().includes('Oct 16 2026 06:30')), await p.evaluate(() => window.__sleep.map(x => new Date(x).toString())));
+    ok('6 “Dormir ahora” deja que la tablet calcule el final con su alarma', await p.evaluate(() => window.__sleep.length === 1 && window.__sleep[0] === 0), await p.evaluate(() => window.__sleep));
+    await p.evaluate(async () => { window.__nextAlarm = new Date('2026-10-16T05:45:00-05:00').getTime(); await shieldStatus(); tab = 'escudo'; route(); }); await p.clock.runFor(300);
+    ok('6 La tarjeta muestra la próxima alarma de la tablet', /Próxima alarma de la tablet: .*05:45/.test(await p.textContent('#sleepcard')) && /hasta las 05:45 \(tu alarma\)/.test(await p.textContent('#sleepcard')));
+    ok('6 Con alarma a las 05:45, la noche termina a las 05:45', await p.evaluate(() => new Date(sleep.nextEnd()).toString().includes('Oct 16 2026 05:45')));
+    await p.click('[data-a="slend"][data-x="fixed"]'); await p.clock.runFor(300); await p.click('[data-a="slnow"]'); await p.clock.runFor(400);
+    ok('6 En «hora fija», “Dormir ahora” bloquea hasta las 06:30 de mañana', await p.evaluate(() => S.shield.cfg.sleep.endMode === 'fixed' && new Date(window.__sleep[1]).toString().includes('Oct 16 2026 06:30')), await p.evaluate(() => window.__sleep.map(x => new Date(x).toString())));
+    await p.click('[data-a="slend"][data-x="alarm"]'); await p.clock.runFor(300);
+    await p.evaluate(() => { window.__sleep.length = 1; });
     const say = async (t) => { await p.evaluate(() => { tab = 'hoy'; route(); }); await p.fill('#cin', t); await p.click('[data-a="csend"]'); await p.clock.runFor(3000); return p.evaluate(() => ({ c: S.ai.chat[S.ai.chat.length - 1].content, n: window.__sleep.length })); };
     let r = await say('me voy a dormir');
     ok('6 «me voy a dormir» por la noche bloquea hasta la mañana', r.n === 2 && /Buenas noches/.test(r.c), r);
     const ag6 = await p.evaluate(() => ag.virtual(today()).find(x => x.vid === 'sleep'));
-    ok('6 La hora de dormir aparece en la agenda', ag6 && ag6.time === '23:00', ag6);
+    ok('6 La hora de dormir aparece en la agenda', ag6 && ag6.time === '22:30' && /05:45 \(tu alarma\)/.test(ag6.title), ag6);
     ok('6 Inicio muestra el botón “Dormir” por la noche', await p.evaluate(() => { tab = 'hoy'; route(); return !!document.querySelector('[data-a="slnowq"]'); }));
     await p.evaluate(() => { S.shield.events.push({ id: 'x1', t: Date.now(), kind: 'sleep_exit', minutes: 15, done: Date.now() }); save(); askAboutShield(); tab = 'escudo'; route(); });
     ok('6 Salir con PIN queda anotado y no dispara la pregunta “¿qué pasó?”', await p.evaluate(() => /Saliste del modo dormir con tu PIN/.test(document.querySelector('#main').textContent) && !S.ai.chat.some(m => (m.cards || []).some(c => c.type === 'shieldq'))));

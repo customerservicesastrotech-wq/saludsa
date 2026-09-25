@@ -59,6 +59,7 @@ public class ShieldPlugin extends Plugin {
         JSONObject cfgNow = ShieldStore.config(c);
         r.put("sleeping", ShieldStore.sleeping(c, cfgNow, now));
         r.put("sleepEnds", ShieldStore.sleepEndsAt(c, cfgNow, now));
+        r.put("nextAlarm", ShieldStore.systemNextAlarm(c));
         // DNS privado: el sistema informa el servidor en uso cuando está en modo "nombre de host".
         String dns = null;
         try {

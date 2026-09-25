@@ -177,6 +177,18 @@ Al probarlo encontré y corregí un fallo que ya existía: lo guardado de noche 
 
 `pruebas_memoria.js` tiene 89 pruebas; en total son **285 pruebas superadas**. La simulación de 2 meses sigue en **31/31 chequeos y 0 errores**.
 
+## v2.8: Samsung Calendar, Samsung Reloj y modo dormir automático
+
+**Samsung Calendar.** Lo que se agenda en Plan 20 se copia al calendario de la tablet que elijas: la agenda, los horarios fijos (como eventos que se repiten) y los cumpleaños (anuales). Usa el calendario del sistema de Android, que es el que muestra Samsung Calendar. Cuando algo cambia o se borra en Plan 20, se actualiza el mismo evento, sin duplicarlo. Los eventos que ya tenías en Samsung Calendar no se tocan.
+
+**Samsung Reloj.** «Ponme una alarma a las 6:30» crea la alarma en el reloj de la tablet con la acción estándar de Android, sin abrir el reloj. También entiende «despiértame a las 7 y media» y «de lunes a viernes», y la IA puede hacerlo.
+
+**Modo dormir automático.** Viene activado todas las noches a las 22:30 y termina cuando suena la próxima alarma de la tablet: la parte nativa la lee con `AlarmManager.getNextAlarmClock()`. Si esa noche no hay alarma, termina a la hora de respaldo (06:30). Una vez que la alarma suena, posponerla no vuelve a bloquear la tablet.
+
+**Fallo corregido: el botón de emergencia dejaba la tablet libre.** Al pulsar "Llamada de emergencia", el modo dormir se pausaba 10 minutos y la tablet quedaba usable. Ahora el botón abre **solo el marcador**. Si sales del marcador o de la llamada a cualquier otra app, la pantalla de dormir vuelve a cubrirla en menos de un segundo. Sin acceso a datos de uso, el margen para marcar es de 60 s. El botón de emergencia se mantiene por seguridad.
+
+`pruebas_samsung.js` tiene 33 pruebas y `pruebas_agenda.js` pasa de 52 a 56; en total son **322 pruebas superadas**. La simulación de 2 meses sigue en **31/31 chequeos y 0 errores**.
+
 ## Pendiente en la tablet real
 
 Esto no se puede reproducir fuera del dispositivo. Ver también "Solo se puede comprobar en la tablet real" en el README:

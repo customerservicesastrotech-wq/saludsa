@@ -176,13 +176,16 @@ public class ShieldService extends Service {
                 boolean on = isInteractive();
                 if (on) {
                     if (hasUsageAccess()) readForeground(now);
-                    boolean allow = inCall() || ShieldStore.sleepAllowed(cfg, fg);
+                    // Tras "Emergencia" solo queda libre la app de llamadas: cualquier otra app vuelve a quedar cubierta.
+                    // Sin acceso a datos de uso no se sabe qué app está delante: 60 s para marcar; después solo sigue libre si hay una llamada.
+                    boolean emerg = now - emergencyAt < (hasUsageAccess() ? 3000L : 60000L); // 3 s: lo que tarda en abrirse el marcador
+                    boolean allow = inCall() || emerg || ShieldStore.sleepAllowed(cfg, fg);
                     if (allow) removeSleep();
                     else if (sleepView == null) showSleep();
                     else updateSleep(now);
                 }
                 updateNotif("sleep");
-                h.postDelayed(this, on ? 1000 : 30000);
+                h.postDelayed(this, on ? 700 : 30000);
                 return;
             } else if (sleepView != null) {
                 removeSleep();
@@ -544,8 +547,8 @@ public class ShieldService extends Service {
                 col.addView(button("Abrir " + label(pkg), Color.rgb(28, 34, 52), Color.WHITE, v -> openApp(pkg)));
             }
         }
-        // Emergencia: SIEMPRE disponible
-        col.addView(button("Llamada de emergencia", Color.rgb(150, 40, 40), Color.WHITE, v -> emergency()));
+        // Emergencia: abre solo el marcador; la tablet sigue bloqueada para todo lo demás
+        col.addView(button("Emergencia (solo marcar)", Color.rgb(90, 30, 30), Color.WHITE, v -> emergency()));
 
         if (sc.optBoolean("pinExit", true) && !sc.optString("pinHash", "").isEmpty()) {
             col.addView(button("Necesito usar la tablet", Color.TRANSPARENT, soft, v -> { sPinBox.setVisibility(sPinBox.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE); pinBuf = ""; pinOkAt = 0; paintPin(); }));
@@ -631,10 +634,12 @@ public class ShieldService extends Service {
         paintPin();
     }
 
+    /** Emergencia: abre SOLO el marcador, sin pausar el modo dormir. Si se sale del marcador (o de la llamada)
+     *  a cualquier otra app, la pantalla de dormir vuelve a cubrirla en menos de un segundo. */
+    private long emergencyAt = 0;
     private void emergency() {
-        long now = System.currentTimeMillis();
-        ShieldStore.p(this).edit().putLong("sleepSnooze", now + 10 * 60000L).apply();
-        logSleep("sleep_emergency", 10);
+        emergencyAt = System.currentTimeMillis();
+        logSleep("sleep_emergency", 0);
         removeSleep();
         try { startActivity(new Intent(Intent.ACTION_DIAL).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); } catch (Exception ignored) {}
     }
@@ -643,8 +648,9 @@ public class ShieldService extends Service {
         try {
             Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
             if (i == null) return;
-            // Sin acceso a datos de uso no sabría cuándo sales de esa app: se permite 10 min y vuelve el modo dormir
-            if (!hasUsageAccess()) ShieldStore.p(this).edit().putLong("sleepSnooze", System.currentTimeMillis() + 10 * 60000L).apply();
+            // Sin acceso a datos de uso no sabría cuándo sales de esa app: se permite 1 min y vuelve el modo dormir
+            if (!hasUsageAccess()) ShieldStore.p(this).edit().putLong("sleepSnooze", System.currentTimeMillis() + 60000L).apply();
+            // (Con acceso a datos de uso, en cuanto sales de la app permitida la pantalla de dormir vuelve.)
             removeSleep(); fg = pkg; startActivity(i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
         } catch (Exception ignored) {}
     }
