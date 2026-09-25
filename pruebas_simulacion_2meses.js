@@ -299,7 +299,7 @@ const check = (day, name, cond, info) => { checks.push({ day, name, pass: !!cond
     /* Recorrido por todas las pantallas (render y tiempos) cada 3 días y rotación a vertical cada 7 */
     if (i % 3 === 0) {
       if (i % 7 === 0) await p.setViewportSize({ width: 720, height: 1152 });
-      for (const t of ['hoy', 'mas', 'detalle', 'registrar', 'plan', 'revision', 'progreso', 'guias', 'ajustes', 'memoria', 'escudo']) {
+      for (const t of ['hoy', 'mas', 'detalle', 'registrar', 'plan', 'revision', 'progreso', 'guias', 'ajustes', 'memoria', 'escudo', 'brujula']) {
         const a0 = process.hrtime.bigint(); await p.evaluate((t) => { closeSheet(true); tab = t; route(); }, t); const ms = Number(process.hrtime.bigint() - a0) / 1e6; // reloj real (el de la página está simulado)
         perf.push({ day: i, tab: t, ms });
         const re = await renderErr(); if (re) issue(k, 'pantalla', `No se pudo mostrar ${t}`, re);
@@ -395,6 +395,12 @@ const check = (day, name, cond, info) => { checks.push({ day, name, pass: !!cond
     const s = S, riskNote = (mindDay(today()).flags || {}).riskNote;
     return { weeks: cal().weekOf(today()), reviews: Object.keys(s.reviews).map(Number).sort((a, b) => a - b), spent: s.ai.spent, budget: s.ai.budget, left: aiLeft(), saver: aiSaver(), pace: spendPace(), logsByType: s.logs.reduce((a, l) => (a[l.type] = (a[l.type] || 0) + 1, a), {}), risk: riskToday(), riskNote, histLen: s.ai.hist.length };
   });
+  const bjFin = await p.evaluate(() => { const pr = bj.predict(), sc = bj.score(), w = bj.window(today()); return { modo: pr.mode, p: +pr.p.toFixed(3), nivel: pr.level, ventana: w && w.label, factores: (pr.factors || []).slice(0, 4).map(f => f.label + (f.mult ? ' ' + f.mult.toFixed(1) : '')), funciona: bj.works().slice(0, 4).map(x => `${x.name} ${x.s}/${x.n}`), ajuste: bj.dose() && { regla: bj.dose().rule, accion: bj.dose().action }, tendencias: bj.trends().map(t => t.id), acierto: sc.n ? { noches: sc.n, skill: +sc.skill.toFixed(3), brier: +sc.brier.toFixed(3) } : null }; });
+  fin.brujula = bjFin;
+  // En esta simulación las recaídas son al azar (no dependen del sueño ni del día): lo honesto es no inventar un patrón.
+  check(endK, 'Brújula mide su acierto con el historial (prueba retrospectiva)', bjFin.acierto && bjFin.acierto.noches >= 30, bjFin.acierto);
+  check(endK, 'Brújula no se inventa patrones: si no mejora a una tasa fija, usa modo prudente', bjFin.acierto && (bjFin.acierto.skill < -0.02 ? bjFin.modo === 'prudente' : bjFin.modo === 'aprendido'), bjFin);
+  check(endK, 'Brújula ubica la ventana de riesgo alrededor de las 23:40', !!bjFin.ventana && /2[2-3]:\d\d–0[0-2]:\d\d|23:\d\d–23:\d\d/.test(bjFin.ventana), bjFin.ventana);
   const notiflog = await p.evaluate(() => JSON.parse(localStorage.getItem('__sim.notiflog') || '[]'));
   const riskNotices = notiflog.filter(n => n.id === 301);
   // Aviso preventivo de riesgo: ¿se programó alguno para la hora de riesgo?

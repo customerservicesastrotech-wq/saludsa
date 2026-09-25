@@ -310,3 +310,30 @@ aside.today h3{font-size:1.15rem}
 .dnsl li{margin-bottom:6px}
 code.dns{font-family:ui-monospace,monospace;background:var(--surface-2);padding:5px 10px;border-radius:8px;font-size:1rem;user-select:all;-webkit-user-select:all}
 .head h1 svg{vertical-align:-4px;color:var(--acc)}
+
+/* ---------- Brújula (v2.5) ---------- */
+.radar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 24px 8px;flex:none;padding:8px 12px;border-radius:14px;background:var(--surface);border:1px solid var(--line);font-size:.9rem}
+.radar .rl{flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.radar .rl svg{color:var(--acc);flex:none}
+.radar.lv1{border-color:var(--warn);background:var(--warn-soft)}
+.radar.lv2{border-color:var(--s3);background:color-mix(in srgb,var(--s3) 12%,var(--surface))}
+.radar .rwhy{flex-basis:100%;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
+.bjgauge{display:block;flex:none}
+.bjclock{width:100%;height:auto;display:block}
+.bjfac{display:flex;flex-direction:column;gap:7px;margin:8px 0}
+.bjfac .r{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr) auto;align-items:center;gap:10px;font-size:.9rem}
+.bjfac .r span{overflow:hidden;text-overflow:ellipsis}
+.bjfac .r i{display:block;height:10px;border-radius:6px;min-width:4px}
+.bjfac .r i.up{background:var(--s3)} .bjfac .r i.dn{background:var(--s2)}
+.bjfac .r b{font-variant-numeric:tabular-nums;min-width:3.2em;text-align:right}
+.bjdose .kicker{margin-bottom:4px}
+.bjdose b{display:block;font-size:1.02rem;margin-bottom:4px}
+.bjdose .btn{margin-top:8px}
+.bjtr{padding:10px 12px;border-radius:12px;margin-bottom:8px;font-size:.92rem;background:var(--surface-2)}
+.bjtr.warn{background:var(--warn-soft)} .bjtr.ok{background:var(--acc-soft)}
+.bjtog{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+.bjtog:last-of-type{border-bottom:0}
+.bjtog .seg{flex:none}
+.bjcard .row{align-items:center;gap:12px;flex-wrap:nowrap}
+.bjcard .mini{margin-top:8px}
+@media (orientation:portrait),(max-width:980px){.bjtog{flex-wrap:wrap}.radar{font-size:.85rem}}

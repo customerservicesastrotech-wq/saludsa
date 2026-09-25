@@ -3,7 +3,7 @@
 App Android para acompañar un plan personal de 20 semanas: movimiento, comida, estudio, sueño y una meta personal ("Meta P"). Está pensada para una **Samsung Galaxy Tab S9 FE**. Tiene un asistente con IA (Claude) que es opcional: sin IA, todo lo esencial sigue funcionando.
 
 - **Plataforma:** Capacitor 7 (HTML/JS en `www/`) con componentes nativos en Java (`android/`).
-- **Versión:** 2.4 (`versionCode 8`).
+- **Versión:** 2.5 (`versionCode 9`).
 - **Datos:** se guardan solo en la tablet (localStorage). No hay servidor propio.
 
 ## Qué hace
@@ -15,6 +15,7 @@ App Android para acompañar un plan personal de 20 semanas: movimiento, comida, 
 | Plan | 20 semanas en fases, plan semanal editable, revisión semanal, progreso con gráficas |
 | Protocolo | "Tengo un impulso": pausa guiada en 5 pasos con temporizadores que siguen aunque se cierre la app |
 | Voz | Dictado continuo (no se corta en los silencios ni envía solo) |
+| Brújula (nuevo en 2.5) | Motor local que anticipa y adapta: probabilidad de riesgo de esta noche y reloj de 24 h aprendidos de tu historial, qué respuestas te funcionan, ajuste semanal con las 8 reglas del manual, avisos antes de tu ventana, tendencias, acierto medido con tu propio historial (si no mejora a una tasa fija, pasa a modo prudente). Órdenes sin IA (“¿cómo voy?”, “riesgo esta noche”, “pausa 5 minutos”…) y voz: lee las respuestas y conversación manos libres |
 | Escudo | En las horas de riesgo, si se abre una app elegida, la pantalla queda en pausa N minutos con mensajes personales. Solo usa qué app está abierta y cuánto rato. Guía para activar el filtro DNS familiar |
 | Privacidad | PIN, etiquetas discretas, sin capturas de pantalla (`FLAG_SECURE`), copia de seguridad `.json` |
 
@@ -29,6 +30,7 @@ www/                 App (lo que ve el usuario)
   ai.js              Llamadas a Claude, presupuesto, reglas de seguridad
   asistente.js       Asistente (Inicio), memoria, riesgo, micrófono
   escudo.js          Pantalla Escudo y su integración con el asistente
+  brujula.js         Motor Brújula: riesgo aprendido, qué funciona, ajuste semanal, avisos, órdenes y voz
 android/app/src/main/java/com/jeanc/plan20/
   MainActivity.java            Registra los plugins; FLAG_SECURE
   ContinuousSpeechPlugin.java  Dictado continuo
@@ -36,13 +38,14 @@ android/app/src/main/java/com/jeanc/plan20/
   ShieldService.java           Servicio en primer plano + pantalla de pausa
   ShieldStore.java             Configuración y registro del Escudo
   ShieldBootReceiver.java      Reactiva el Escudo al reiniciar
+  VozPlugin.java               Voz de Brújula (texto a voz de Android)
 pruebas_*.js         Pruebas automáticas (Playwright)
 scripts/pruebas.sh   Ejecuta todas las pruebas
 ```
 
 ## Cómo probar
 
-### 1. Pruebas automáticas (93 pruebas)
+### 1. Pruebas automáticas (144 pruebas)
 
 Requisitos: Node 20+ y Python 3.
 
@@ -57,6 +60,7 @@ npm test
 - `pruebas_regresion.js`: 49 pruebas de funciones generales.
 - `pruebas_microfono.js`: 9 pruebas del dictado continuo.
 - `pruebas_escudo.js`: 35 pruebas del Escudo.
+- `pruebas_brujula.js`: 51 pruebas de Brújula. Plantan patrones en un historial simulado (recae los jueves tras dormir poco, cerca de medianoche) y comprueban que el motor los descubre solo. También comprueban que con recaídas al azar no se inventa patrones.
 
 Termina con código 1 si algo falla. Además, `npm run sim:2meses` simula 2 meses de uso en una Galaxy Tab S9 FE (ver [informe](docs/Informe-simulacion-2-meses-Tab-S9-FE.md)). Las pruebas fijan la zona horaria `America/Bogota` (UTC-5), así que dan lo mismo en cualquier máquina.
 

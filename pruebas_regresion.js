@@ -303,7 +303,7 @@ const state = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('plan20.v1
     const tiles = await p.evaluate(() => [...document.querySelectorAll('.tile[data-a="go"]')].map(t => t.dataset.x));
     for (const t of tiles.filter(x => x !== 'hist')) { await p.click('.rail button[data-tab="mas"]'); await p.click(`.tile[data-x="${t}"]`); await p.waitForTimeout(80); }
     const alerts = await p.evaluate(() => document.querySelectorAll('#main .card.alert').length);
-    ok('30 “Más” abre todas las pantallas anteriores sin errores', tiles.length === 10 && tiles[0] === "escudo" && !errs.length && !alerts, JSON.stringify(tiles));
+    ok('30 “Más” abre todas las pantallas anteriores sin errores', tiles.length === 11 && tiles[0] === "brujula" && tiles[1] === "escudo" && !errs.length && !alerts, JSON.stringify(tiles));
     await ctx.close(); }
 
   { const { p, ctx } = await fresh(b, { date: '2026-10-15', hour: 9 });
