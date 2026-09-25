@@ -98,7 +98,7 @@ const PERSONA_A = () => {
   /* 3. Órdenes locales (sin IA) y respeto de la alarma */
   { const { p, ctx, ai } = await open(b, '2026-11-12T08:00:00-05:00');
     await p.evaluate(PERSONA_A);
-    const say = async (t) => { await p.evaluate((t) => { tab = 'hoy'; route(); }, t); await p.fill('#cin', t); await p.click('[data-a="csend"]'); await p.clock.runFor(1500); return p.evaluate(() => { const m = S.ai.chat[S.ai.chat.length - 1]; return { c: m.content, bj: !!m.bj, tab }; }); };
+    const say = async (t) => { await p.evaluate((t) => { tab = 'hoy'; route(); }, t); await p.fill('#cin', t); await p.click('[data-a="csend"]'); for (let i = 0; i < 40; i++) { await p.clock.runFor(300); await p.waitForTimeout(80); if (await p.evaluate(() => !agentBusy)) break; } await p.clock.runFor(1200); return p.evaluate(() => { const m = S.ai.chat[S.ai.chat.length - 1]; return { c: m.content, bj: !!m.bj, tab }; }); };
     let r = await say('¿Cómo voy?'); ok('3 «¿Cómo voy?» responde al instante sin IA', r.bj && /Semana \d+/.test(r.c) && ai() === 0, r.c.slice(0, 90));
     r = await say('riesgo esta noche'); ok('3 «riesgo esta noche» da nivel, ventana y mejor respuesta', r.bj && /Esta noche/.test(r.c) && /tel[eé]fono/i.test(r.c), r.c.slice(0, 140));
     r = await say('¿qué me funciona?'); ok('3 «¿qué me funciona?» ordena las respuestas', r.bj && /Dejar el tel[eé]fono.*\n.*Lectura/s.test(r.c), r.c.slice(0, 140));

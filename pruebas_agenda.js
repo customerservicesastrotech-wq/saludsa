@@ -25,6 +25,8 @@ async function open(b, when, opts = {}) {
   if (opts.ai) await p.evaluate(() => { localStorage.setItem('plan20.apikey', 'sk-ant-test'); });
   return { p, ctx, errs, bodies };
 }
+/* Espera a que el asistente termine (la respuesta simulada de la IA llega en tiempo real, no con el reloj simulado) */
+const settle = async (p) => { for (let i = 0; i < 40; i++) { await p.clock.runFor(300); await p.waitForTimeout(80); if (await p.evaluate(() => !agentBusy)) { await p.clock.runFor(300); return; } } };
 const TU = (name, input) => ({ type: 'tool_use', id: 't' + Math.random().toString(36).slice(2, 7), name, input });
 
 (async () => {
@@ -67,7 +69,7 @@ const TU = (name, input) => ({ type: 'tool_use', id: 't' + Math.random().toStrin
       if (Array.isArray(last.content) && last.content.some(c => c.type === 'tool_result')) return { content: [{ type: 'text', text: 'Listo, quedó agendado.' }] };
       return { content: [{ type: 'text', text: '¡Perfecto! Te lo dejo agendado para mañana.' }, TU('agenda', { accion: 'crear', items: [{ fecha: '2026-10-16', hora: '07:00', titulo: 'Desayuno: avena con banano', tipo: 'comida' }, { fecha: '2026-10-16', hora: '10:00', titulo: 'Cita médica', tipo: 'cita' }] }), TU('respuestas', { opciones: ['Gracias', 'Añade la cena', 'Muéstrame mañana'] })] };
     } });
-    await p.fill('#cin', 'Mañana desayuno avena a las 7 y a las 10 tengo cita médica'); await p.click('[data-a="csend"]'); await p.clock.runFor(1500);
+    await p.fill('#cin', 'Mañana desayuno avena a las 7 y a las 10 tengo cita médica'); await p.click('[data-a="csend"]'); await settle(p);
     const r = await p.evaluate(() => ({ card: (document.querySelector('.acard .kicker') || {}).textContent || '', txt: [...document.querySelectorAll('.acard')].map(e => e.textContent).join(' | '), chips: [...document.querySelectorAll('.qchip')].map(e => e.textContent), items: ag.items('2026-10-16').map(x => x.time + ' ' + x.title), n: window.__n }));
     ok('2 La tarjeta “Agendé” muestra día y hora de cada cosa', /Agendé/.test(r.txt) && /Mañana.*07:00.*avena/.test(r.txt) && /10:00.*Cita/.test(r.txt), r.txt.slice(0, 160));
     ok('2 Quedan en la agenda de mañana', r.items.includes('07:00 Desayuno: avena con banano') && r.items.includes('10:00 Cita médica'), r.items);
@@ -122,7 +124,7 @@ const TU = (name, input) => ({ type: 'tool_use', id: 't' + Math.random().toStrin
     ok('4 El primer mensaje del día es un saludo (¡Hola…!), no una pregunta', /^¡Hola/.test(r.first || ''), r.first);
     ok('4 Con botones de respuesta rápida (solo los del último mensaje)', r.chips.includes('Me parece bien') && r.chips.length === 3, r.chips);
     ok('4 Las propuestas del saludo quedan en la agenda como propuestas', r.props.includes('07:45 Desayuno: avena con fruta') && r.props.includes('tarde Caminata 20 min'), r.props);
-    await p.click('.qchip >> text=¿Qué me toca hoy?'); await p.clock.runFor(1200);
+    await p.click('.qchip >> text=¿Qué me toca hoy?'); await settle(p);
     ok('4 Tocar un botón responde con esa frase', await p.evaluate(() => S.ai.chat.some(m => m.role === 'user' && m.content === '¿Qué me toca hoy?')));
     ok('4 Sin errores JS', !errs.length, errs);
     await ctx.close(); }
@@ -137,7 +139,7 @@ const TU = (name, input) => ({ type: 'tool_use', id: 't' + Math.random().toStrin
     const png = await p.evaluate(() => { const c = document.createElement('canvas'); c.width = 3000; c.height = 2000; const g = c.getContext('2d'); g.fillStyle = '#c83'; g.fillRect(0, 0, 3000, 2000); return c.toDataURL('image/png').split(',')[1]; });
     await p.setInputFiles('#attf', { name: 'plato.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') }); await p.waitForTimeout(800); await p.clock.runFor(300);
     ok('5 Al adjuntar aparece la miniatura antes de enviar', await p.evaluate(() => document.querySelectorAll('.attprev img').length === 1));
-    await p.fill('#cin', '¿Está bien este almuerzo?'); await p.click('[data-a="csend"]'); await p.clock.runFor(1500);
+    await p.fill('#cin', '¿Está bien este almuerzo?'); await p.click('[data-a="csend"]'); await settle(p);
     const body = bodies[bodies.length - 1], last = body.messages[body.messages.length - 1];
     const img = Array.isArray(last.content) && last.content.find(c => c.type === 'image');
     const dims = img ? await p.evaluate((d) => new Promise(r => { const i = new Image(); i.onload = () => r([i.naturalWidth, i.naturalHeight]); i.src = 'data:image/jpeg;base64,' + d; }), img.source.data) : null;
