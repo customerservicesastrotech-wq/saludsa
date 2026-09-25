@@ -48,7 +48,7 @@ scripts/pruebas.sh   Ejecuta todas las pruebas
 
 ## Cómo probar
 
-### 1. Pruebas automáticas (195 pruebas)
+### 1. Pruebas automáticas (196 pruebas)
 
 Requisitos: Node 20+ y Python 3.
 
@@ -63,7 +63,7 @@ npm test
 - `pruebas_regresion.js`: 49 pruebas de funciones generales.
 - `pruebas_microfono.js`: 9 pruebas del dictado continuo.
 - `pruebas_escudo.js`: 35 pruebas del Escudo.
-- `pruebas_agenda.js`: 51 pruebas de la Agenda: los cinco motivos por los que no se guardaba lo que contabas, recordatorios, saludo inicial, respuestas rápidas, imágenes y modo dormir.
+- `pruebas_agenda.js`: 52 pruebas de la Agenda: los cinco motivos por los que no se guardaba lo que contabas, recordatorios, saludo inicial, respuestas rápidas, imágenes y modo dormir.
 - `pruebas_brujula.js`: 51 pruebas de Brújula. Plantan patrones en un historial simulado (recae los jueves tras dormir poco, cerca de medianoche) y comprueban que el motor los descubre solo. También comprueban que con recaídas al azar no se inventa patrones.
 
 Termina con código 1 si algo falla. Además, `npm run sim:2meses` simula 2 meses de uso en una Galaxy Tab S9 FE (ver [informe](docs/Informe-simulacion-2-meses-Tab-S9-FE.md)). Las pruebas fijan la zona horaria `America/Bogota` (UTC-5), así que dan lo mismo en cualquier máquina.

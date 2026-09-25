@@ -105,6 +105,9 @@ const TU = (name, input) => ({ type: 'tool_use', id: 't' + Math.random().toStrin
       await p.setViewportSize(vp);
       for (const t of ['hoy', 'agenda']) { const s = await p.evaluate((t) => { tab = t; homeView = 'dia'; route(); return { over: document.documentElement.scrollWidth > innerWidth + 1, alert: !!document.querySelector('#main .card.alert') }; }, t); ok(`3 ${t} sin desbordamiento ni error (${vp.width}px)`, !s.over && !s.alert, s); }
     }
+    await p.setViewportSize({ width: 720, height: 1152 });
+    const gap = await p.evaluate(() => { tab = 'hoy'; homeView = 'dia'; route(); const v = document.querySelector('.vtabs').getBoundingClientRect(), a = document.querySelector('aside.today').getBoundingClientRect(); return Math.round(a.top - v.bottom); });
+    ok('3 En vertical la Agenda queda justo debajo de las pestañas (sin hueco)', gap >= 0 && gap < 60, gap);
     ok('3 Sin errores JS', !errs.length, errs);
     await ctx.close(); }
 

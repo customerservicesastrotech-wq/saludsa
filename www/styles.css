@@ -291,6 +291,7 @@ aside.today h3{font-size:1.15rem}
   .home.v-dia .msgs,.home.v-dia .composer2,.home.v-dia > .convo > .qrow{display:none}
   .home.v-dia .convo{height:auto}
   .home.v-dia .today{height:auto}
+  .home.v-dia{align-content:start;grid-template-rows:auto auto}
 }
 
 .schip.ask{background:var(--surface);border:1px dashed var(--line);gap:8px}
