@@ -314,6 +314,13 @@ const state = (p) => p.evaluate(() => JSON.parse(localStorage.getItem('plan20.v1
     ok('31 Sin presupuesto no se envía nada y se avisa', bodies.length === 0 && /presupuesto/.test(m), m.slice(0, 80));
     await ctx.close(); }
 
+  /* 34. Calendario de la Meta P en la tablet (1152 px): 7 columnas del mismo ancho, dentro de su tarjeta */
+  { const { p, ctx } = await fresh(b, { date: '2026-10-15' });
+    await p.setViewportSize({ width: 1152, height: 720 });
+    const r = await p.evaluate(() => { tab = 'progreso'; route(); const c = document.querySelector('.cal'), card = c.closest('.card').getBoundingClientRect(); const ws = getComputedStyle(c).gridTemplateColumns.split(' ').map(parseFloat); const cells = [...c.querySelectorAll('i')].map(i => Math.round(i.getBoundingClientRect().width)); return { ws, inside: c.getBoundingClientRect().right <= card.right + 1, same: new Set(cells.filter(Boolean)).size <= 1 }; });
+    ok('34 Calendario de la Meta P: 7 columnas iguales dentro de la tarjeta', r.ws.length === 7 && Math.max(...r.ws) < 80 && Math.max(...r.ws) - Math.min(...r.ws) < 1 && r.inside && r.same, JSON.stringify(r));
+    await ctx.close(); }
+
   /* 32. Aviso preventivo con hora de riesgo de madrugada (informe de simulación de 2 meses, fallo 1) */
   for (const [horas, esperado] of [[['00:20', '00:40'], /Oct 21 2026 00:10/], [['23:40', '23:50'], /Oct 20 2026 23:20/]]) {
     const b2 = await b.newContext({ timezoneId: 'America/Bogota' }); const p = await b2.newPage();

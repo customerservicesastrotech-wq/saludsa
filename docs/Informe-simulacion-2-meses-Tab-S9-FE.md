@@ -8,11 +8,11 @@
 
 **La app aguanta bien los 2 meses de uso.** No hubo errores de JavaScript, pantallas rotas, pérdida de datos, descuadres en progreso ni en la racha, ni caídas de rendimiento.
 
-La primera corrida encontró **1 fallo real** y **4 observaciones**. Luego se corrigieron el fallo y 3 de las observaciones, más 2 fallos del flujo de compilación del APK (ver "Correcciones aplicadas"). La corrida posterior a los arreglos pasa **28/28 chequeos, sin hallazgos**, y `npm test` pasa **92/92**.
+La primera corrida encontró **1 fallo real** y **4 observaciones**. Luego se corrigieron el fallo y 3 de las observaciones, más 2 fallos del flujo de compilación del APK (ver "Correcciones aplicadas"). La corrida posterior a los arreglos pasa **28/28 chequeos, sin hallazgos**, y `npm test` pasa **93/93**.
 
 | Indicador | Resultado |
 |---|---|
-| Pruebas automáticas (`npm test`) | 88/88 antes; 92/92 después de los arreglos (4 pruebas nuevas) |
+| Pruebas automáticas (`npm test`) | 88/88 antes; 93/93 después de los arreglos (5 pruebas nuevas) |
 | Días simulados | 61 |
 | Errores JS / `console.error` | 0 / 0 |
 | Chequeos de la simulación | 26/27 antes (el fallido era el fallo 1); 28/28 después de los arreglos |
@@ -110,6 +110,7 @@ Se usan en modo "app instalada" (`isNativePlatform() = true`):
 | Observación 2: copia de Google con datos sensibles | `allowBackup="false"` y `res/xml/data_extraction_rules.xml`, que excluye todo de la copia en la nube y de la transferencia entre dispositivos. Para mover datos: Ajustes → Exportar copia | Revisión del manifiesto |
 | Observación 3: importar sin confirmación | Antes de reemplazar, la app muestra cuántos registros tiene la copia y cuántos se perderán, y pide confirmación. Después aparece "Deshacer importación" en Ajustes, que vuelve al estado anterior y conserva el PIN | Prueba de regresión 33 y chequeo de la simulación |
 | CI: `npx cap sync` fallaba ("Could not find installation of TypeScript") porque `capacitor.config.ts` necesita TypeScript | `typescript` agregado a `devDependencies` | `npx cap sync android` termina bien |
+| Calendario de la Meta P deformado en la tablet (en Progreso solo se veía la columna "L"): la celda de hoy heredaba `height:100vh` de la clase `.today` del panel "Tu día" y, por su `aspect-ratio`, estiraba la columna a 720 px. Lo encontré al capturar pantallas para la guía; la simulación no lo detectó porque solo medía el desbordamiento horizontal de la página | Estilos del panel limitados a `aside.today` y cuadrícula con `minmax(0,1fr)` | Prueba de regresión 34 |
 | CI: `./gradlew: Permission denied` | `android/gradlew` marcado como ejecutable en git (modo 100755) | Por eso falló el primer run de Actions, "Versión inicial" |
 
 **Nota para quien actualice:** con `allowBackup="false"`, Android ya no guarda estos datos en la copia de Google. Actualizar el APK encima de la versión anterior no borra nada, pero conviene exportar una copia desde Ajustes de vez en cuando.

@@ -42,7 +42,7 @@ scripts/pruebas.sh   Ejecuta todas las pruebas
 
 ## Cómo probar
 
-### 1. Pruebas automáticas (92 pruebas)
+### 1. Pruebas automáticas (93 pruebas)
 
 Requisitos: Node 20+ y Python 3.
 
@@ -54,7 +54,7 @@ npm test
 
 `npm test` levanta un servidor local, abre la app en Chromium y simula los componentes nativos (dictado, Escudo, notificaciones):
 
-- `pruebas_regresion.js`: 48 pruebas de funciones generales.
+- `pruebas_regresion.js`: 49 pruebas de funciones generales.
 - `pruebas_microfono.js`: 9 pruebas del dictado continuo.
 - `pruebas_escudo.js`: 35 pruebas del Escudo.
 
