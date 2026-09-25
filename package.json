@@ -7,7 +7,8 @@
     "serve": "python3 -m http.server 8765 -d www",
     "sync": "npx cap sync android",
     "apk:debug": "npx cap sync android && cd android && ./gradlew assembleDebug",
-    "apk:release": "npx cap sync android && cd android && ./gradlew assembleRelease"
+    "apk:release": "npx cap sync android && cd android && ./gradlew assembleRelease",
+    "sim:2meses": "bash scripts/simulacion.sh"
   },
   "keywords": [],
   "author": "",

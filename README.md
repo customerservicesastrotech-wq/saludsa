@@ -58,7 +58,7 @@ npm test
 - `pruebas_microfono.js`: 9 pruebas del dictado continuo.
 - `pruebas_escudo.js`: 35 pruebas del Escudo.
 
-Termina con código 1 si algo falla. Las pruebas fijan la zona horaria `America/Bogota` (UTC-5), así que dan lo mismo en cualquier máquina.
+Termina con código 1 si algo falla. Además, `npm run sim:2meses` simula 2 meses de uso en una Galaxy Tab S9 FE (ver [informe](docs/Informe-simulacion-2-meses-Tab-S9-FE.md)). Las pruebas fijan la zona horaria `America/Bogota` (UTC-5), así que dan lo mismo en cualquier máquina.
 
 En GitHub, el flujo [`.github/workflows/pruebas.yml`](.github/workflows/pruebas.yml) corre las pruebas y compila un APK de prueba en cada `push`. El APK se descarga desde la pestaña **Actions**, en los *artifacts* de cada ejecución.
 
